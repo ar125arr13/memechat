@@ -84,7 +84,7 @@ cd /tmp/mcd && git add -A && git commit -m "MemeChat second repo: encrypted arch
 یک خط، بدون توکن، بدون کپی کردن فایل (اسکریپت از شاخهٔ عمومی خوانده میشود):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ar125arr13/memechat/5d53ba110023830035a0e09067015380c936cc4a/repo2-scaffold/one-shot.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ar125arr13/memechat/9a9c444aa9461fcc9101f38797148628e26cdd07/repo2-scaffold/one-shot.sh | bash
 ```
 
 پیشنیاز: `gh` روی همان کامپیوتر با حساب `zahradavoodi69-code` لاگین باشد.
@@ -103,3 +103,39 @@ gh api -X PATCH repos/zahradavoodi69-code/memechat-dataa -f name=memechat-data  
 
 
 نسخهٔ بالا به **commit SHA مشخص** پین شده (نه نام شاخه) تا کش CDN نسخهٔ قدیمی را برنگرداند. همین اسکریپت بهصورت انتها‑به‑انتها روی یک مخزن خالی شبیهسازی و تست شد: شاخهٔ `main` ساخته شد، سه فایل `.gitignore` / `README.md` / `docs/PLAN.md` کامیت و پوش شدند، و اسکن الگویی secret تمیز بود.
+
+---
+
+## Termux / اندروید (خطاهای `gh: command not found` و `curl: (23)`)
+
+`gh` بهصورت پیشفرض توی Termux نصب نیست. اسکریپت با `set -e` همان خط ۸ متوقف شد،
+لولهٔ `curl | bash` بسته شد و برای همین `curl: (23) Failure writing output` هم آمد
+(این دومی خطای شبکه نبود). ترتیب درست:
+
+```bash
+pkg install -y gh git
+gh auth login          # GitHub.com → Login with a web browser → کد را در github.com/login/device بزن
+gh auth setup-git
+curl -fsSL -o ~/mc.sh https://raw.githubusercontent.com/ar125arr13/memechat/9a9c444aa9461fcc9101f38797148628e26cdd07/repo2-scaffold/one-shot.sh
+bash ~/mc.sh
+```
+
+چهار نکته:
+- **`curl -o` بهجای `| bash`** → خطای ۲۳ نمیآید و میتوانید اسکریپت را قبل از اجرا بخوانید.
+- `gh auth login` از device flow استفاده میکند؛ هیچ توکنی توی چت/دستور فرستاده نمیشود.
+- چون پوش با هویت **خود صاحب حساب** انجام میشود، دیگر `403 denied to ar125arr13` پیش نمیآید.
+- اسکریپت نهایی چک میکند `git` / `gh` / لاگین موجود باشند وگرنه پیام فارسی میدهد.
+
+## چرا ۴۰۳ میآمد و سه راه حذفش
+
+علت، **هویت** است نه تنظیمات ریپو: توکن Sandbox = `ar125arr13`
+(اپ `arena-ai-coding-agent`، installation `163714007`، `repository_selection: all`
+فقط روی همان حساب)، درحالیکه مالک ریپو `zahradavoodi69-code` است.
+
+1. **همین بالا** (ترمکس با لاگین صاحب حساب) → پوش با هویت درست، بدون ۴۰۳.
+2. **اتصال GitHub توی Arena** را قطع/وصل کنید و حساب `zahradavoodi69-code` را انتخاب کنید تا توکن تازه صادر شود
+   ← خودم rename / Private / پوش را انجام میدهم. نصب کردن اپ روی سایت GitHub بهتنهایی توکن Sandbox را عوض نمیکرد (چک شد).
+3. **بدون تغییر اتصال**: یک ریپوی خالی و Private زیر **`ar125arr13`** بسازید؛ چون
+   `repository_selection: all` است، توکن من بلافاصله به آن دسترسی نوشتن دارد و پوش میکنم.
+
+اگر ریپو را Private کنید، توکن من `404` میبیند (طبق طراحی GitHub)، نه `403` — آن طبیعی است.
