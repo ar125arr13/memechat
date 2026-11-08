@@ -7,6 +7,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 gh repo clone "$REPO" "$WORK/repo" -- --depth=1
 cd "$WORK/repo"
+git checkout -q -B main   # تضمین شاخهٔ main حتی اگر HEAD مخزن خالی چیز دیگری باشد
 
 cat > README.md <<'MEMECHAT_README_EOF'
 # میم chat — ریپوی دوم (داده / آرشیو)
