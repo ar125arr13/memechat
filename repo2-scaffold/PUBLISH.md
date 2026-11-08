@@ -66,3 +66,13 @@ fatal: ... 403
   `bash one-shot.sh` → ۳۰ ثانیه، ریپو پر میشود.
 - **راه ب:** اتصال **GitHub** را در Arena دوباره وصل کنید (ترجیحاً همان حساب
   `zahradavoodi69-code`). خودم rename به `memechat-data`، Private کردن، و پوش را انجام میدهم.
+
+### راه ج (کوتاهترین، ۴ خط)
+چون `ar125arr13/memechat` عمومی است، محتوا همانجاست؛ کافی است در ترمینال خودتان:
+
+```bash
+git clone -b arena/6b6dad2d-memechat https://github.com/ar125arr13/memechat.git /tmp/mc
+git clone https://github.com/zahradavoodi69-code/memechat-dataa.git /tmp/mcd
+cp -R /tmp/mc/repo2-scaffold/. /tmp/mcd/ && rm -f /tmp/mcd/one-shot.sh /tmp/mcd/publish.sh
+cd /tmp/mcd && git add -A && git commit -m "MemeChat second repo: encrypted archive" && git push -u origin main
+```
