@@ -2,6 +2,12 @@
 # روی کامپیوتر خودتان اجرا کنید؛ همانجایی که `gh` با حساب zahradavoodi69-code لاگین است.
 # هیچ توکنی لازم نیست. ریپو را پر میکند و main را پوش میدهد.
 set -euo pipefail
+
+# پیشنیازها (مخصوصاً Termux: gh بهصورت پیشفرض نصب نیست)
+command -v git >/dev/null 2>&1 || { echo "git نصب نیست →  pkg install -y git"; exit 1; }
+command -v gh  >/dev/null 2>&1 || { echo "gh نصب نیست →  pkg install -y gh  سپس  gh auth login"; exit 1; }
+gh auth status >/dev/null 2>&1 || { echo "لاگین نیست →  gh auth login  (کد device را در github.com/login/device بزن)"; exit 1; }
+
 REPO="${1:-zahradavoodi69-code/memechat-dataa}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
