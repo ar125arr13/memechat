@@ -139,3 +139,26 @@ bash ~/mc.sh
    `repository_selection: all` است، توکن من بلافاصله به آن دسترسی نوشتن دارد و پوش میکنم.
 
 اگر ریپو را Private کنید، توکن من `404` میبیند (طبق طراحی GitHub)، نه `403` — آن طبیعی است.
+
+
+---
+
+## ریپوی با نام دلخواه (مثلاً `memechat-dataaa`)
+
+اسکریپت نام ریپو را بهصورت آرگومان اول میگیرد؛ پیشفرض `zahradavoodi69-code/memechat-dataa` است:
+
+```bash
+bash ~/mc.sh zahradavoodi69-code/memechat-dataaa
+```
+
+یا همان لولهای، ولی حتماً با `curl -o` (نه `| bash`):
+
+```bash
+curl -fsSL -o ~/mc.sh https://raw.githubusercontent.com/ar125arr13/memechat/9a9c444aa9461fcc9101f38797148628e26cdd07/repo2-scaffold/one-shot.sh
+bash ~/mc.sh zahradavoodi69-code/memechat-dataaa
+```
+
+**اگه ریپو Private باشد**: توکن Sandbox (`ar125arr13`) طبق طراحی GitHub آن را `404` میبیند
+(هم در REST و هم در `git ls-remote`) — یعنی نه تأییدش میتوانم بکنم نه پوشش بدهم.
+این طبیعی و حتی مطلوب است؛ فقط پوش باید با `gh` لاگینشدهٔ خود صاحب حساب انجام شود،
+درست همان کاری که دستور بالا میکند.
