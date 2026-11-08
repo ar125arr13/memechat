@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Push repo2-scaffold as the initial commit of the NEW GitHub repo.
-# Run ONLY after ar125arr13/memechat-data has been created (empty, private).
+# Run ONLY after the target GitHub repo exists AND this connection has write access to it.
 set -euo pipefail
-REMOTE="${1:-https://github.com/ar125arr13/memechat-data.git}"
+REMOTE="${1:-https://github.com/zahradavoodi69-code/memechat-dataa.git}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

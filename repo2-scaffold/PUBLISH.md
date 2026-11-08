@@ -39,3 +39,30 @@ bash /home/user/memechat/repo2-scaffold/publish.sh
 هیچ توکنی لازم نیست ردوبدل شود. دو توکنی که توی گفتگو فرستاده شدند استفاده نشدهاند —
 لطفاً هر دو رو Revoke کنید. نشانی کاربران همچنان
 `https://zahradavoodi69-code.github.io/memechat/` است و دستنخورده.
+
+---
+
+## بهروزرسانی بعد از «تایید شد» (۸ نوامبر ۲۰۲۶، ۱۱:۲۶ UTC)
+
+ریپوی ساختهشده پیدا شد: **`zahradavoodi69-code/memechat-dataa`** — خالی، شاخهٔ `main`،
+ساختهشده ۱۱:۲۶ امروز. سه نکته:
+
+1. نام `memechat-dataa` است (یک `a` اضافه)؛ اسم موردنظر `memechat-data` بود.
+2. **Public** ساخته شده (پارامتر `visibility=private` فرم GitHub نگرفت). چون قرار است آرشیو
+   دادهها باشد، حتماً Settings → Change visibility → **Private** کنید. `README.md` هم
+   هشدارش را گرفت.
+3. مالک `zahradavoodi69-code` است، ولی اتصال این محیط `ar125arr13` است. پوش مستقیم زده شد:
+
+```
+remote: Permission to zahradavoodi69-code/memechat-dataa.git denied to ar125arr13.
+fatal: ... 403
+```
+
+یعنی **محتوا آماده است ولی نوشتن به آن مخزن با این اتصال ممکن نیست.**
+
+### دو راه تمامکردن
+- **راه الف (بدون هیچ توکن):** فایل `one-shot.sh` همان پوشه را باز کنید، کلش را کپی کنید و
+  در ترمینال خودتان (جایی که `gh` با `zahradavoodi69-code` لاگین است) اجرا کنید:
+  `bash one-shot.sh` → ۳۰ ثانیه، ریپو پر میشود.
+- **راه ب:** اتصال **GitHub** را در Arena دوباره وصل کنید (ترجیحاً همان حساب
+  `zahradavoodi69-code`). خودم rename به `memechat-data`، Private کردن، و پوش را انجام میدهم.
