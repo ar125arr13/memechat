@@ -84,7 +84,7 @@ cd /tmp/mcd && git add -A && git commit -m "MemeChat second repo: encrypted arch
 یک خط، بدون توکن، بدون کپی کردن فایل (اسکریپت از شاخهٔ عمومی خوانده میشود):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ar125arr13/memechat/arena/6b6dad2d-memechat/repo2-scaffold/one-shot.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ar125arr13/memechat/5d53ba110023830035a0e09067015380c936cc4a/repo2-scaffold/one-shot.sh | bash
 ```
 
 پیشنیاز: `gh` روی همان کامپیوتر با حساب `zahradavoodi69-code` لاگین باشد.
@@ -100,3 +100,6 @@ gh api -X PATCH repos/zahradavoodi69-code/memechat-dataa -f name=memechat-data  
 
 اگر ریپو Private شود، توکن `ar125arr13` بهطور طبیعی ۴۰۴ میبیند و Agent نمیتواند
 محتوای آن را راستیآزمایی کند؛ در آن حالت تأیید نهایی با `gh repo view` خود کاربر است.
+
+
+نسخهٔ بالا به **commit SHA مشخص** پین شده (نه نام شاخه) تا کش CDN نسخهٔ قدیمی را برنگرداند. همین اسکریپت بهصورت انتها‑به‑انتها روی یک مخزن خالی شبیهسازی و تست شد: شاخهٔ `main` ساخته شد، سه فایل `.gitignore` / `README.md` / `docs/PLAN.md` کامیت و پوش شدند، و اسکن الگویی secret تمیز بود.
