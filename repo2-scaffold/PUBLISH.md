@@ -76,3 +76,27 @@ git clone https://github.com/zahradavoodi69-code/memechat-dataa.git /tmp/mcd
 cp -R /tmp/mc/repo2-scaffold/. /tmp/mcd/ && rm -f /tmp/mcd/one-shot.sh /tmp/mcd/publish.sh
 cd /tmp/mcd && git add -A && git commit -m "MemeChat second repo: encrypted archive" && git push -u origin main
 ```
+
+---
+
+## دستور نهایی (انتخابشده: اجرا در ترمینال کاربر)
+
+یک خط، بدون توکن، بدون کپی کردن فایل (اسکریپت از شاخهٔ عمومی خوانده میشود):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ar125arr13/memechat/arena/6b6dad2d-memechat/repo2-scaffold/one-shot.sh | bash
+```
+
+پیشنیاز: `gh` روی همان کامپیوتر با حساب `zahradavoodi69-code` لاگین باشد.
+اسکریپت ریپو را کلون میکند، `README.md` / `.gitignore` / `docs/PLAN.md` را مینویسد،
+کامیت میکند و `main` را پوش میدهد.
+
+اختیاری (همان ترمینال، بعد از پوش):
+
+```bash
+gh api -X PATCH repos/zahradavoodi69-code/memechat-dataa -F private=true   # Private کردن آرشیو
+gh api -X PATCH repos/zahradavoodi69-code/memechat-dataa -f name=memechat-data  # تصحیح نام
+```
+
+اگر ریپو Private شود، توکن `ar125arr13` بهطور طبیعی ۴۰۴ میبیند و Agent نمیتواند
+محتوای آن را راستیآزمایی کند؛ در آن حالت تأیید نهایی با `gh repo view` خود کاربر است.
