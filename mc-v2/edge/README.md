@@ -29,17 +29,22 @@ mimchat/
 │   ├── entry.v2.js       ← از mc-v2/edge/ کپی شود
 │   └── v2-handler.js     ← از mc-v2/edge/ کپی شود
 ├── src/
-│   └── crypto.js         ← از mc-v2/src/crypto.js کپی شود
+│   ├── crypto.js         ← از mc-v2/src/crypto.js کپی شود
+│   └── ice.js            ← از mc-v2/src/ice.js کپی شود (STUN/TURN)
 └── lib/
 ```
 
 - `entry.v2.js` با `../api/auth.js` و `../api/chat.js` همان روترهای فعلی را صدا میزند؛
   برای همین باید کنار `api/` باشد، نه داخل `mc-v2/` تنها.
-- `v2-handler.js` فقط به `../src/crypto.js` نیاز دارد؛ `src/` را هم کنار `api/` و
-  `edge/` کپی کنید.
+- `v2-handler.js` به `../src/crypto.js` و `../src/ice.js` نیاز دارد؛ پوشهٔ `src/`
+  را هم کنار `api/` و `edge/` کپی کنید.
 - `entry.v2.js` همان سه مسیر `/api/auth`، `/api/chat`، `/api/health` را نگه میدارد و
   فقط `/api/v2` را اضافه میکند. تا وقتی جایش عوض نشده، سایت هیچ تغییری نمیکند.
 - متغیرهای سرور (`GITHUB_TOKEN`, `GITHUB_REPO`, `GITHUB_PAGES_BRANCH`,
   `BACKUP_ENCRYPTION_KEY`, `MIMCHAT_API_BASE`) فقط تو Supabase Secrets تنظیم میشوند؛
   مقدارشان هرگز تو مرورگر، Pages، لاگ یا این مخزن نیست.
+- برای TURN اختیاری: `MC_V2_TURN_URLS`, `MC_V2_TURN_USERNAME`,
+  `MC_V2_TURN_CREDENTIAL` یا `MC_V2_ICE_SERVERS_JSON` همانجا اضافه میشوند؛
+  `/api/v2?action=ice` اونها رو فقط بعد از احراز هویت برمیگردونه. بدون اینها،
+  همان ۵ STUN رایگان `src/ice.js` جواب میده. توضیح `docs/STUN-TURN.md`.
 - **ما هیچکدام از این جابهجاییها را انجام ندادیم.**

@@ -34,6 +34,9 @@
   (`edge/entry.v2.js` + `edge/v2-handler.js`) ولی **مستقر نشده**؛ تا وقتی نباشه،
   حالت `mirror` یا `active` بدون نویسنده خودکار به همان `send` فعلی برمیگرده و
   هیچ پیامی گم نمیشه. محل دقیق کپی کردن فایلها تو `edge/README.md` نوشته شده.
+- **STUN/TURN:** پیشفرض ۵ آینهٔ رایگان وصله، بدون تغییر CSP (چون `connect-src`
+  شامل `RTCPeerConnection` نمیشه). پُستچی/TURN واقعی فقط اگه خودت سرورشو وصل کنی
+  اضافه میشه؛ رمزش هرگز تو این صفحه نیست. توضیح ساده تو `docs/STUN-TURN.md`.
 
 ## تنظیمات اختیاری (همه اختیاری، پیشفرض امن)
 
@@ -46,7 +49,9 @@ window.MC_V2_CONFIG = {
   mode: "mirror",
   keyMode: "session",     // یا "device" اگه بخوای فقط خود دستگاه بتونه باز کنه
   writerReady: false,     // بعد از استقرار /api/v2 بذار true
-  iceServers: [],         // STUN/TURN فقط با اجازهٔ تو و بررسی CSP
+  iceMode: "stun",        // پیشفرض: ۵ آینهٔ رایگان؛ "server" فقط بعد از استقرار /api/v2
+  iceServers: null,       // هرگز credential اینجا نذار؛ رمز TURN فقط سمتسرور
+  iceTransportPolicy: "all",
   pagesBase: ""           // خالی = همان مبدأ سایت
 };
 </script>

@@ -16,6 +16,7 @@ import { createProfileReader } from "./profile.js";
 import { createDeviceKeyProvider, createSessionKeyProvider } from "./key.js";
 import { createOutbox, createPagesSink, createLegacySink } from "./offline.js";
 import { createPeerLink, rtcSupported } from "./rtc.js";
+import { createIceProvider, redactIceServers } from "./ice.js";
 import { createSignaling, signalingRoom } from "./signaling.js";
 
 export function installMemeChatV2(config = {}) {
@@ -24,7 +25,11 @@ export function installMemeChatV2(config = {}) {
     mode: "mirror",                 // off | mirror | active
     pagesBase: "",                  // همان آدرس Pages؛ پیشفرض همان مبدأ سایت
     keyMode: "session",             // session | device
-    iceServers: [],
+    iceMode: "stun",                // off | stun | custom | server | function
+    iceServers: null,               // فقط آرایهٔ بدون رمز؛ رمز TURN هرگز اینجا نباشد
+    iceProvider: null,              // تابع async اختیاری، بدون رمز عمومی
+    iceTransportPolicy: "all",      // یا relay اگه بخواهی حتماً از TURN رد شود
+    iceCacheTtlMs: 300000,
     writerReady: false,             // تا نویسندۀ سمتسرور وصل نشده false بماند
     flushEveryMs: 8000,
   }, g.MC_V2_CONFIG || {}, config);
@@ -68,6 +73,10 @@ export function installMemeChatV2(config = {}) {
   const outbox = createOutbox({ scope, flushEveryMs: cfg.flushEveryMs });
   const pagesSink = cfg.writerReady ? createPagesSink({ api: originals.api, keyProvider }) : null;
   const legacySink = createLegacySink({ api: originals.api });
+  const ice = createIceProvider({
+    api: originals.api, mode: cfg.iceMode, servers: cfg.iceServers,
+    custom: cfg.iceProvider, cacheTtlMs: cfg.iceCacheTtlMs,
+  });
   const peers = new Map();
 
   let installed = false, restoreFns = [], flushTimer = null;
@@ -98,7 +107,7 @@ export function installMemeChatV2(config = {}) {
       if (!peers.has(topic)) {
         const link = await createPeerLink({
           conversationId: topic, selfId: login.userId(), peerId: (g.chat && g.chat.peerId) || null,
-          api: originals.api, iceServers: cfg.iceServers,
+          api: originals.api, iceServers: await ice(), iceTransportPolicy: cfg.iceTransportPolicy,
           onMessage: payload => { if (typeof g.mcV2OnLiveMessage === "function") g.mcV2OnLiveMessage(payload); },
         });
         peers.set(topic, link);
@@ -204,6 +213,7 @@ export function installMemeChatV2(config = {}) {
       version: 2, mode: cfg.mode, scope, install, restore, flush,
       history: readHistory, profile: profiles.load, keyMode: keyProvider.mode,
       outbox, cache: getCache, login, rtcSupported: rtcSupported(),
+      ice, iceServers: async () => redactIceServers(await ice()),
       originals, config: cfg,
     });
   }

@@ -42,10 +42,14 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
 2. فایلهای `edge/entry.v2.js` + `edge/v2-handler.js` + `src/crypto.js` کنار همان
    `api/` و `edge/` فعلی کپی شن و متغیرهای سرور تنظیم شن
    (`GITHUB_TOKEN`, `GITHUB_REPO`, `GITHUB_PAGES_BRANCH`, `BACKUP_ENCRYPTION_KEY`).
-   محل دقیق تو `edge/README.md` است. **ما این کارو نکردیم.**
+   اگه خواستی TURN هم وصل بشه، `MC_V2_TURN_URLS` / `MC_V2_TURN_USERNAME` /
+   `MC_V2_TURN_CREDENTIAL` (یا `MC_V2_ICE_SERVERS_JSON`) همونجا اضافه میشن؛
+   پیشفرض بدون اونها هم ۵ STUN رایگان کار میکنه. محل دقیق تو `edge/README.md`
+   و `docs/STUN-TURN.md` است. **ما این کارو نکردیم.**
 3. `sql/001_v2_additive.sql` اجرا بشه (فقط `create table if not exists`).
 4. `state.json` بره `active`؛ اگه هر جا خطا بود، `mirror` برگرده.
-5. تست بدون کاربر واقعی: ورود، پیوی، گروه، کانال، تماس، استوری، جستجو.
+5. تست بدون کاربر واقعی: ورود، پیوی، گروه، کانال، تماس، استوری، جستجو،
+   و وصل شدن دو مرورگر پشت NAT با STUN (و در صورت داشتن TURN، با اون هم).
 
 تا اون موقع: **سوپا بیس روشنه، لینک ثابته، ظاهر ثابته، پیامها سر جان.**
 

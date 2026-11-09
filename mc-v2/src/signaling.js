@@ -6,7 +6,12 @@
 import { utf8, sha256Hex, randomId, signBytes, verifyBytes, exportPublicJwk } from "./crypto.js";
 
 const ALLOWED_KEYS = ["v", "kind", "n", "t", "sdp", "candidate", "eph", "id", "sig", "ack"];
-const FORBIDDEN_KEYS = ["text", "body", "message", "msg", "file", "media", "token", "password", "password_hash", "email", "phone", "privateKey", "d"];
+const FORBIDDEN_KEYS = [
+  "text", "body", "message", "msg", "file", "media", "token", "password",
+  "password_hash", "email", "phone", "privateKey", "d",
+  /* رمز/پیکربندی TURN نباید حتی اشتباهی وارد سیگنالینگ عمومی شود */
+  "credential", "iceServers", "apiKey", "username", "secret",
+];
 
 export function assertConnectionOnly(data) {
   const o = data && typeof data === "object" ? data : {};

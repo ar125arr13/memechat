@@ -6,6 +6,7 @@
  * GITHUB_PAGES_BRANCH, BACKUP_ENCRYPTION_KEY. مقدارشان هرگز لاگ یا چاپ نمیشود.
  */
 import { utf8, fromUtf8, b64d, b64e, sha256Hex, toBytes } from "../src/crypto.js";
+import { normalizeIceServers, DEFAULT_STUN_SERVERS } from "../src/ice.js";
 
 const GH_API = "https://api.github.com";
 /* fetchFn فقط برای تست تزریق میشود؛ در اجرای واقعی همان fetch محیط است */
@@ -110,7 +111,7 @@ export async function handleV2(req, deps = {}) {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
   const u = new URL(req.url);
   /* هر دو شکل پذیرفته میشود: ?action=key و /api/v2/key */
-  const pathAction = /(?:^|\/)api\/v2\/(key|append)(?:\/|$)/.exec(u.pathname);
+  const pathAction = /(?:^|\/)api\/v2\/(key|append|ice)(?:\/|$)/.exec(u.pathname);
   const action = u.searchParams.get("action") || (pathAction && pathAction[1]) || "";
   let user;
   try { user = await authenticate(req, deps); } catch (e) { return json(null, 502, { success: false, error: "AUTH_UNAVAILABLE" }); }
@@ -127,6 +128,28 @@ export async function handleV2(req, deps = {}) {
     );
     const keyB64 = b64e(new Uint8Array(bits));
     return json(null, 200, { success: true, key: keyB64, scope: String(user.id) });
+  }
+
+  if (action === "ice" && req.method === "GET") {
+    /* رمز TURN فقط اینجا، پشت همان توکن ورود فعلی. هیچ مقداری لاگ نمیشود. */
+    let turn = [];
+    const cfg = env("MC_V2_ICE_SERVERS_JSON");
+    if (cfg) {
+      try {
+        const parsed = JSON.parse(cfg);
+        if (!Array.isArray(parsed)) throw new Error("NOT_ARRAY");
+        turn = parsed;
+      } catch (e) { return json(null, 503, { success: false, error: "ICE_CONFIG_BAD_JSON" }); }
+    } else {
+      const urls = env("MC_V2_TURN_URLS").split(",").map(s => s.trim()).filter(Boolean);
+      const username = env("MC_V2_TURN_USERNAME"), credential = env("MC_V2_TURN_CREDENTIAL");
+      if (urls.length && username && credential) turn = [{ urls, username, credential }];
+      else if (urls.length || username || credential) return json(null, 503, { success: false, error: "ICE_TURN_CONFIG_INCOMPLETE" });
+    }
+    let iceServers;
+    try { iceServers = normalizeIceServers([...DEFAULT_STUN_SERVERS, ...turn], { allowCredentials: true }); }
+    catch (e) { return json(null, 503, { success: false, error: "ICE_CONFIG_INVALID" }); }
+    return json(null, 200, { success: true, iceServers, turnConfigured: turn.length > 0, scope: String(user.id) });
   }
 
   if (action === "append" && req.method === "POST") {

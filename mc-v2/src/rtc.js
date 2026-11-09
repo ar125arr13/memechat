@@ -10,13 +10,20 @@ import {
 } from "./crypto.js";
 import { signalingRoom, createSignaling, selfPublicJwk } from "./signaling.js";
 import { createBrowserKv, createMemoryKv } from "./kv.js";
+import { normalizeIceServers } from "./ice.js";
 
 export function rtcSupported() {
   return typeof RTCPeerConnection !== "undefined" || typeof globalThis.RTCPeerConnection !== "undefined";
 }
 
+/** آرایه یا تابع async → آرایهٔ تأییدشدهٔ ICE. برای تست و عیبیابی هم export شد. */
+export async function resolvePeerIceServers(iceServers) {
+  const raw = typeof iceServers === "function" ? await iceServers() : iceServers;
+  return normalizeIceServers(raw, { allowCredentials: true });
+}
+
 export async function createPeerLink({
-  conversationId, selfId, peerId, api, iceServers = [],
+  conversationId, selfId, peerId, api, iceServers = [], iceTransportPolicy = "all",
   RTCPeerConnectionCtor = globalThis.RTCPeerConnection,
   kv = null, onMessage = () => {}, onState = () => {}, now = () => Date.now(),
   handshakeTimeoutMs = 30000,
@@ -35,7 +42,7 @@ export async function createPeerLink({
   const myEphJwk = await exportPublicJwk(ephemeral.publicKey);
 
   let pc = null, channel = null, sessionKey = null, seq = 0, lastRemoteSeq = 0;
-  let peerOnline = false, closed = false, initiator = false;
+  let peerOnline = false, closed = false, initiator = false, resolvedIce = [];
 
   const state = s => { try { onState(s); } catch (e) {} };
 
@@ -81,7 +88,7 @@ export async function createPeerLink({
   }
 
   function newPc() {
-    pc = new RTCPeerConnectionCtor({ iceServers });
+    pc = new RTCPeerConnectionCtor({ iceServers: resolvedIce, iceTransportPolicy });
     pc.onicecandidate = e => {
       if (e && e.candidate) sig.post("ice", { candidate: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }).catch(() => {});
     };
@@ -94,6 +101,7 @@ export async function createPeerLink({
 
   async function handshake({ offer = false } = {}) {
     initiator = offer;
+    resolvedIce = await resolvePeerIceServers(iceServers);
     newPc();
     if (offer) makeChannel("memechat-v2");
     else attachChannel();
@@ -155,5 +163,6 @@ export async function createPeerLink({
     handshake, send, close, isOnline: () => peerOnline && !closed,
     fingerprint: () => fingerprint(myIdJwk), get room() { return room; },
     identityJwk: myIdJwk, signaling: sig,
+    get iceServers() { return resolvedIce.map(s => ({ ...s, ...(s.credential ? { credential: "***" } : {}) })); },
   };
 }

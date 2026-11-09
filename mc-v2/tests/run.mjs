@@ -16,6 +16,8 @@ import { createProfileReader } from "../src/profile.js";
 import { createDeviceKeyProvider, createSessionKeyProvider, createStaticKeyProvider } from "../src/key.js";
 import { createOutbox, createPagesSink } from "../src/offline.js";
 import { assertConnectionOnly, createSignaling, signalingRoom } from "../src/signaling.js";
+import { normalizeIceServers, createIceProvider, redactIceServers, DEFAULT_STUN_SERVERS } from "../src/ice.js";
+import { resolvePeerIceServers } from "../src/rtc.js";
 import { handleV2 } from "../edge/v2-handler.js";
 import { installMemeChatV2 } from "../src/boot.js";
 import { createBackup } from "../migration/backup.mjs";
@@ -190,6 +192,8 @@ await t("signaling: متن پیام/توکن/فایل ممنوع، TTL، پاک�
   assert.throws(() => assertConnectionOnly({ text: "سلام" }), /PLAINTEXT_FORBIDDEN/);
   assert.throws(() => assertConnectionOnly({ token: "x" }), /PLAINTEXT_FORBIDDEN/);
   assert.throws(() => assertConnectionOnly({ file: {} }), /PLAINTEXT_FORBIDDEN/);
+  assert.throws(() => assertConnectionOnly({ credential: "turn-secret" }), /PLAINTEXT_FORBIDDEN/);
+  assert.throws(() => assertConnectionOnly({ iceServers: [{ urls: "turn:x:443" }] }), /PLAINTEXT_FORBIDDEN/);
   assert.doesNotThrow(() => assertConnectionOnly({ sdp: { type: "offer", sdp: "v=0" }, eph: { kty: "EC" }, n: "n-1" }));
   const posted = [];
   const api = async (p, o) => {
@@ -444,6 +448,7 @@ await t("boot: mirror هیچ تابعی رو خراب نمیکنه، خطا بر
     assert.equal(v2.mode, "mirror");
     assert.equal(v2.originals.api, wrappedApi);
     assert.notEqual(globalThis.api, wrappedApi, "لایه دور api() پیچیده شد");
+    assert.equal((await v2.iceServers()).length, 5, "پیشفرض STUN رایگان وصل است، بدون TURN/رمز");
     const hist = await globalThis.api("/api/chat?action=history&topic=pv-a-b&limit=40", { noCache: true });
     assert.equal(hist.data.from, "legacy", "بستهٔ Pages نبود → همان مسیر فعلی");
     const sent = await globalThis.api("/api/chat?action=send", { method: "POST", body: { text: "x" } });
@@ -454,6 +459,69 @@ await t("boot: mirror هیچ تابعی رو خراب نمیکنه، خطا بر
     let left = 0; for (const set of listeners.values()) left += set.size;
     assert.equal(left, 0, "همهٔ شنوندهها و تایمرها جمع شدند");
   });
+});
+
+
+await t("STUN/TURN: پیشفرض رایگان، رمز عمومی ممنوع، خطا فقط STUN میماند", async () => {
+  assert.equal(DEFAULT_STUN_SERVERS.length, 5);
+  const stun = normalizeIceServers(DEFAULT_STUN_SERVERS);
+  assert.equal(stun.length, 5);
+  assert.equal(stun.every(s => /^stun:/.test(String(s.urls))), true);
+  assert.throws(() => normalizeIceServers("javascript:alert(1)"), /ICE_BAD_URL/);
+  assert.throws(() => normalizeIceServers({ urls: "turn:relay.example:443", credential: "secret" }), /ICE_PUBLIC_CREDENTIAL_FORBIDDEN/);
+  const turn = normalizeIceServers({ urls: "turn:relay.example:443?transport=tcp", username: "u", credential: "p" }, { allowCredentials: true });
+  assert.equal(turn[0].credential, "p");
+  assert.equal(redactIceServers(turn)[0].credential, "***", "رمز تو لاگ چاپ نشد");
+  const off = createIceProvider({ mode: "off" });
+  assert.deepEqual(await off(), []);
+  const fallback = createIceProvider({ mode: "server", api: async () => ({ ok: false, status: 500, data: {} }) });
+  assert.equal((await fallback()).length, 5, "سرور TURN خراب شد → همان STUN رایگان");
+  const calls = [];
+  const server = createIceProvider({ mode: "server", api: async p => {
+    calls.push(p);
+    return { ok: true, status: 200, data: { success: true, iceServers: [
+      ...DEFAULT_STUN_SERVERS,
+      { urls: "turn:relay.example:443?transport=tcp", username: "u1", credential: "p1" },
+    ] } };
+  } });
+  const got = await server();
+  assert.equal(calls[0], "/api/v2?action=ice");
+  assert.equal(got.length, 6);
+  assert.equal(got[5].credential, "p1");
+  const viaFn = await resolvePeerIceServers(async () => [{ urls: "stun:stun.l.google.com:19302" }]);
+  assert.equal(viaFn.length, 1);
+});
+
+await t("edge/ice: STUN رایگان + TURN فقط از سرور، بدون لاگ رمز", async () => {
+  const oldEnv = globalThis.process.env;
+  const deps = { authenticate: async () => ({ id: "u-1", username: "a" }) };
+  const req = () => new Request("https://x/api/v2?action=ice", { method: "GET", headers: { Authorization: "Bearer tok" } });
+  globalThis.process.env = { ...oldEnv,
+    MC_V2_TURN_URLS: "turn:relay.example:443?transport=tcp,turns:relay.example:5349",
+    MC_V2_TURN_USERNAME: "u1", MC_V2_TURN_CREDENTIAL: "p1" };
+  const r = await handleV2(req(), deps), d = await r.json();
+  assert.equal(r.status, 200); assert.equal(d.success, true); assert.equal(d.turnConfigured, true);
+  assert.equal(d.iceServers.length, 6, "۵ STUN + ۱ TURN با دو آدرس");
+  const turn = d.iceServers[d.iceServers.length - 1];
+  assert.equal(turn.username, "u1"); assert.equal(turn.credential, "p1");
+  const noAuth = await handleV2(new Request("https://x/api/v2?action=ice", { method: "GET" }), deps);
+  assert.equal(noAuth.status, 401);
+  /* شکل مسیردار هم جواب میدهد */
+  const pathRes = await handleV2(new Request("https://x/functions/v1/mimchat-api/api/v2/ice", {
+    method: "GET", headers: { Authorization: "Bearer tok" },
+  }), deps);
+  assert.equal(pathRes.status, 200);
+  /* پیکربندی JSON سمتسرور هم پذیرفته میشود */
+  globalThis.process.env = { ...oldEnv, MC_V2_ICE_SERVERS_JSON: JSON.stringify([
+    { urls: ["turn:relay2.example:443?transport=tcp"], username: "u2", credential: "p2" },
+  ]) };
+  const j = await handleV2(req(), deps), jd = await j.json();
+  assert.equal(j.status, 200); assert.equal(jd.iceServers[jd.iceServers.length - 1].credential, "p2");
+  /* ناقص → اعلام خطا، نه اینکه نصفه اجرا شود */
+  globalThis.process.env = { ...oldEnv, MC_V2_TURN_URLS: "turn:relay.example:443", MC_V2_TURN_USERNAME: "u1" };
+  const bad = await handleV2(req(), deps);
+  assert.equal(bad.status, 503);
+  globalThis.process.env = oldEnv;
 });
 
 console.log(`\n${passed} tests passed.`);
