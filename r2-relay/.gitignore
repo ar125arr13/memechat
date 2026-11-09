@@ -1,0 +1,8 @@
+wrangler.toml
+.dev.vars
+.wrangler/
+node_modules/
+*.log
+.env
+.env.*
+!.env.example

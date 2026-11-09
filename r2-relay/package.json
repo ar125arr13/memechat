@@ -1,0 +1,11 @@
+{
+  "name": "memechat-r2-relay-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Prototype: encrypted multi-provider blob relay with Cloudflare R2 as control plane. NOT deployed, NOT wired into the live app.",
+  "scripts": {
+    "test": "node tests/run.mjs"
+  },
+  "engines": { "node": ">=20" }
+}
