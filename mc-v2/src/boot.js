@@ -18,6 +18,7 @@ import { createOutbox, createPagesSink, createLegacySink } from "./offline.js";
 import { createPeerLink, rtcSupported } from "./rtc.js";
 import { createIceProvider, redactIceServers } from "./ice.js";
 import { createSignaling, signalingRoom } from "./signaling.js";
+import { createControlApi, describeSupabaseRole } from "./plane.js";
 
 export function installMemeChatV2(config = {}) {
   const g = globalThis;
@@ -31,6 +32,7 @@ export function installMemeChatV2(config = {}) {
     iceTransportPolicy: "all",      // یا relay اگه بخواهی حتماً از TURN رد شود
     iceCacheTtlMs: 300000,
     writerReady: false,             // تا نویسندۀ سمتسرور وصل نشده false بماند
+    decouple: false,                // true → دادهٔ اصلی دیگر به Supabase نمیرود (بدون حذف چیزی)
     flushEveryMs: 8000,
   }, g.MC_V2_CONFIG || {}, config);
 
@@ -40,6 +42,9 @@ export function installMemeChatV2(config = {}) {
     sendMsg: typeof g.sendMsg === "function" ? g.sendMsg : null,
   };
   if (!originals.api) throw new Error("V2_BOOT_NEEDS_ORIGINAL_API");
+  const noSupabaseData = !!cfg.decouple;
+  /* در حالت جداسازی، حتی مسیر پشتیبان داده هم بسته میشود؛ پیام تو صف دستگاه میماند. */
+  const controlApi = createControlApi(originals.api, { decouple: noSupabaseData });
 
   const login = createLoginBridge({
     getMe: () => g.me || null,
@@ -54,7 +59,7 @@ export function installMemeChatV2(config = {}) {
   const scope = login.scope();
   const keyProvider = cfg.keyMode === "device"
     ? createDeviceKeyProvider({ scope })
-    : createSessionKeyProvider({ api: originals.api, scope });
+    : createSessionKeyProvider({ api: controlApi, scope });
 
   let cache = null;
   async function getCache() {
@@ -65,16 +70,16 @@ export function installMemeChatV2(config = {}) {
   }
   const profiles = createProfileReader({
     pagesBase: cfg.pagesBase || "",
-    legacyCard: async username => {
-      const r = await originals.api("/api/chat?action=user-card&username=" + encodeURIComponent(username), { noCache: true });
+    legacyCard: noSupabaseData ? null : async username => {
+      const r = await controlApi("/api/chat?action=user-card&username=" + encodeURIComponent(username), { noCache: true });
       return r && r.data ? r.data : null;
     },
   });
   const outbox = createOutbox({ scope, flushEveryMs: cfg.flushEveryMs });
-  const pagesSink = cfg.writerReady ? createPagesSink({ api: originals.api, keyProvider }) : null;
-  const legacySink = createLegacySink({ api: originals.api });
+  const pagesSink = cfg.writerReady ? createPagesSink({ api: controlApi, keyProvider }) : null;
+  const legacySink = createLegacySink({ api: controlApi });
   const ice = createIceProvider({
-    api: originals.api, mode: cfg.iceMode, servers: cfg.iceServers,
+    api: controlApi, mode: cfg.iceMode, servers: cfg.iceServers,
     custom: cfg.iceProvider, cacheTtlMs: cfg.iceCacheTtlMs,
   });
   const peers = new Map();
@@ -95,19 +100,36 @@ export function installMemeChatV2(config = {}) {
       return { ok: true, status: 200, data: { success: true, messages: out.messages, hasMore: false, serverTime: Date.now(), v2: true, version: out.version, cached: out.cached } };
     } catch (e) {
       if (cfg.mode !== "off") { try { console.warn("[mc-v2] history fallback:", e && e.message); } catch (_) {} }
-      return originals.api(query, opts || {});
+      if (noSupabaseData) {
+        /* جداسازی: به جای خواندن دوباره از Supabase، صادقانه بگوییم بسته در دسترس نیست.
+           هیچ ردیفی پاک نشده؛ کش/نسخهٔ قدیمی همچنان سر جاست. */
+        return { ok: false, status: 503, data: { success: false, messages: [], v2: "pages-unavailable", error: "بستهٔ تاریخچه روی Pages در دسترس نیست؛ هیچ داده‌ای پاک نشد." } };
+      }
+      return controlApi(query, opts || {});
+    }
+  }
+
+  async function queueOnly(body) {
+    try {
+      await outbox.enqueue(body);
+      return { ok: true, status: 200, data: { success: true, v2: "offline-queued-decoupled" } };
+    } catch (e) {
+      return { ok: false, status: 503, data: { success: false, v2: "outbox-unavailable", error: "صف دستگاه در دسترس نیست؛ پیام به هیچ سرور قدیمی فرستاده نشد." } };
     }
   }
 
   /* ---- online: WebRTC، وگرنه آفلاین، وگرنه همان مسیر فعلی ---- */
   async function routeSend(body, path) {
-    if (cfg.mode !== "active" || !rtcSupported()) return originals.api(path, { method: "POST", body });
+    if (cfg.mode !== "active" || !rtcSupported()) {
+      if (noSupabaseData) return queueOnly(body);
+      return controlApi(path, { method: "POST", body });
+    }
     const topic = String(body && body.topic || "");
     try {
       if (!peers.has(topic)) {
         const link = await createPeerLink({
           conversationId: topic, selfId: login.userId(), peerId: (g.chat && g.chat.peerId) || null,
-          api: originals.api, iceServers: await ice(), iceTransportPolicy: cfg.iceTransportPolicy,
+          api: controlApi, iceServers: await ice(), iceTransportPolicy: cfg.iceTransportPolicy,
           onMessage: payload => { if (typeof g.mcV2OnLiveMessage === "function") g.mcV2OnLiveMessage(payload); },
         });
         peers.set(topic, link);
@@ -132,7 +154,8 @@ export function installMemeChatV2(config = {}) {
         try { console.warn("[mc-v2] outbox fallback:", e && e.message); } catch (_) {}
       }
     }
-    return originals.api(path, { method: "POST", body });
+    if (noSupabaseData) return queueOnly(body);
+    return controlApi(path, { method: "POST", body });
   }
 
   function install() {
@@ -141,7 +164,7 @@ export function installMemeChatV2(config = {}) {
     wrapGlobal("api", async function v2api(path, opts) {
       const p = String(path || "");
       const o = opts || {};
-      if (cfg.mode === "off") return originals.api(path, o);
+      if (cfg.mode === "off") return controlApi(path, o);
       if (p.indexOf("action=history") >= 0) {
         const m = /[?&]topic=([^&]+)/.exec(p);
         const topic = m ? decodeURIComponent(m[1]) : "";
@@ -150,7 +173,7 @@ export function installMemeChatV2(config = {}) {
       if (cfg.mode === "active" && p.indexOf("action=send") >= 0 && (o.method || "").toUpperCase() === "POST") {
         return routeSend(o.body, p);
       }
-      return originals.api(path, o);
+      return controlApi(path, o);
     });
 
     /* جابهجایی حساب → کش همان حساب پاک میشود (قانون تفکیک دادههای محلی) */
@@ -196,8 +219,11 @@ export function installMemeChatV2(config = {}) {
         done += items.length;
       } catch (e) {
         await outbox.bumpAttempts(items.map(x => x.clientId));
-        /* شکست → همان مسیر فعلی، هیچ دادهٔ قدیمی پاک نمیشود */
-        for (const it of items) { try { await legacySink.send(it.message); } catch (_) {} }
+        /* جداسازی: شکست یعنی پیام تو صف میماند، نه اینکه برگردد به Supabase.
+           در حالت عادی، همان مسیر فعلی پشتیبان است؛ هیچ دادهٔ قدیمی پاک نمیشود. */
+        if (!noSupabaseData) {
+          for (const it of items) { try { await legacySink.send(it.message); } catch (_) {} }
+        }
       }
     }
     return { flushed: done };
@@ -214,6 +240,7 @@ export function installMemeChatV2(config = {}) {
       history: readHistory, profile: profiles.load, keyMode: keyProvider.mode,
       outbox, cache: getCache, login, rtcSupported: rtcSupported(),
       ice, iceServers: async () => redactIceServers(await ice()),
+      decouple: noSupabaseData, supabaseRole: describeSupabaseRole(noSupabaseData),
       originals, config: cfg,
     });
   }

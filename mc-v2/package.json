@@ -8,7 +8,8 @@
     "test": "node tests/run.mjs",
     "backup": "node migration/backup.mjs --fixture --out ./local-backup",
     "export": "node migration/export.mjs --backup ./local-backup --out ./local-out",
-    "verify": "node migration/verify.mjs --backup ./local-backup --out ./local-out"
+    "verify": "node migration/verify.mjs --backup ./local-backup --out ./local-out",
+    "decouple": "node migration/decouple.mjs --backup ./local-backup --out ./local-out"
   },
   "engines": { "node": ">=20" }
 }

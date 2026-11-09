@@ -55,15 +55,8 @@ revoke all on public.mimchat_v2_archives from anon, authenticated;
 revoke all on public.mimchat_v2_outbox   from anon, authenticated;
 revoke all on public.mimchat_v2_signals  from anon, authenticated;
 
--- ۵) پاکسازی فقط ردیفهای موقت «منقضیشده» — هیچ پیام / حساب / تنظیمی پاک نمیشود.
---    این تابع بهصورت اختیاری و فقط برای جدول سیگنالینگ قابل صداست.
-create or replace function public.mimchat_v2_cleanup_expired_signals() returns integer
-language plpgsql security definer set search_path = public as $$
-declare n integer;
-begin
-  delete from public.mimchat_v2_signals where expires_at < now();
-  get diagnostics n = row_count;
-  return n;
-end $$;
+-- ۵) هیچ تابع حذفکنندهای تعریف نمیشود.
+--    سیگنالهای موقت همان مسیر قدیمی rt-clear را دارند؛ تو این فایل هیچ DELETEای نیست
+--    تا قانون «بدون حذف اطلاعات» حتی تو اسکیمای جدید هم صدق کند.
 
-select 'memechat v2 additive schema ready; no existing data touched' as status;
+select 'memechat v2 additive schema ready; no existing data touched; no delete function' as status;

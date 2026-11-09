@@ -40,6 +40,9 @@ mimchat/
   را هم کنار `api/` و `edge/` کپی کنید.
 - `entry.v2.js` همان سه مسیر `/api/auth`، `/api/chat`، `/api/health` را نگه میدارد و
   فقط `/api/v2` را اضافه میکند. تا وقتی جایش عوض نشده، سایت هیچ تغییری نمیکند.
+- بعد از استقرار، `decouple:true` مرز `src/plane.js` را فعال میکند: تاریخچه/ارسال/
+  پروفایل دیگر به `/api/chat` برنمیگردند؛ `/api/v2` فقط نویسندهٔ امن و کنترل است،
+  نه انبار پیام. قدیمیها همچنان سر جاشوندهستن (`docs/DECOUPLE.md`).
 - متغیرهای سرور (`GITHUB_TOKEN`, `GITHUB_REPO`, `GITHUB_PAGES_BRANCH`,
   `BACKUP_ENCRYPTION_KEY`, `MIMCHAT_API_BASE`) فقط تو Supabase Secrets تنظیم میشوند؛
   مقدارشان هرگز تو مرورگر، Pages، لاگ یا این مخزن نیست.

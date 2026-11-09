@@ -18,6 +18,8 @@ import { createOutbox, createPagesSink } from "../src/offline.js";
 import { assertConnectionOnly, createSignaling, signalingRoom } from "../src/signaling.js";
 import { normalizeIceServers, createIceProvider, redactIceServers, DEFAULT_STUN_SERVERS } from "../src/ice.js";
 import { resolvePeerIceServers } from "../src/rtc.js";
+import { assertControlPlaneOnly, createControlApi, describeSupabaseRole, assertNoDestructive, SupabaseDataPathForbidden } from "../src/plane.js";
+import { buildDecoupleReport } from "../migration/decouple.mjs";
 import { handleV2 } from "../edge/v2-handler.js";
 import { installMemeChatV2 } from "../src/boot.js";
 import { createBackup } from "../migration/backup.mjs";
@@ -360,6 +362,7 @@ function fakeIndexedDB() {
     },
   };
 }
+const REAL_CONSOLE = globalThis.console;
 function withGlobals(values, fn) {
   const keys = Object.keys(values), saved = {};
   for (const k of keys) saved[k] = globalThis[k];
@@ -443,6 +446,7 @@ await t("boot: mirror هیچ تابعی رو خراب نمیکنه، خطا بر
     dispatchEvent: e => { const set = listeners.get(e && e.type); if (set) for (const f of set) f(e); return true; },
     CustomEvent: class { constructor(type) { this.type = type; } },
   };
+  globals.console = { warn: () => {}, log: (...a) => REAL_CONSOLE.log(...a), error: (...a) => REAL_CONSOLE.error(...a) };
   await withGlobals(globals, async () => {
     const v2 = installMemeChatV2({ mode: "mirror", keyMode: "device", writerReady: false, pagesBase: "" });
     assert.equal(v2.mode, "mirror");
@@ -522,6 +526,91 @@ await t("edge/ice: STUN رایگان + TURN فقط از سرور، بدون لا
   const bad = await handleV2(req(), deps);
   assert.equal(bad.status, 503);
   globalThis.process.env = oldEnv;
+});
+
+
+await t("جداسازی: فقط کنترل به سوپا میرود، دادهٔ اصلی نه، هیچ حذفی مجاز نیست", async () => {
+  assert.doesNotThrow(() => assertControlPlaneOnly("/api/auth?action=session", { decouple: true }));
+  assert.doesNotThrow(() => assertControlPlaneOnly("/api/chat?action=rt-get&room=x", { decouple: true }));
+  assert.doesNotThrow(() => assertControlPlaneOnly("/api/v2?action=append", { decouple: true }));
+  assert.throws(() => assertControlPlaneOnly("/api/chat?action=history&topic=x", { decouple: true }), SupabaseDataPathForbidden);
+  assert.throws(() => assertControlPlaneOnly("/api/chat?action=send", { decouple: true }), SupabaseDataPathForbidden);
+  assert.doesNotThrow(() => assertControlPlaneOnly("/api/chat?action=send", { decouple: false }));
+  const calls = [];
+  const api = createControlApi(async (p) => { calls.push(p); return { ok: true, status: 200, data: {} }; }, { decouple: true });
+  await api("/api/v2?action=ice");
+  await assert.rejects(() => api("/api/chat?action=user-card&username=a"), SupabaseDataPathForbidden);
+  assert.equal(calls.length, 1);
+  const role = describeSupabaseRole(true);
+  assert.equal(role.dataDeleted, false);
+  assert.equal(role.oldRows, "kept-until-explicit-confirmation");
+  assert.throws(() => assertNoDestructive("DELETE FROM mimchat_staging_messages;"), /DESTRUCTIVE_OPERATION_FORBIDDEN/);
+  assert.doesNotThrow(() => assertNoDestructive("create table if not exists x (id text);"));
+});
+
+await t("decouple report: ۴۴ جدول، صفر حذف، وضعیت PREPARED فقط بعد از تأیید", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mcv2-decouple-"));
+  try {
+    const bDir = join(dir, "backup"), oDir = join(dir, "out");
+    await createBackup({ fixture: true, outDir: bDir });
+    const e = await exportArchives({ backupDir: bDir, outDir: oDir });
+    await verifyMigration({ backupDir: bDir, outDir: oDir, keyB64: e.keyRaw });
+    const r = await buildDecoupleReport({ backupDir: bDir, outDir: oDir });
+    assert.equal(r.status, "PREPARED", JSON.stringify(r.destructiveOperations));
+    assert.equal(r.tableCount, 44);
+    assert.equal(r.totalRows > 140, true);
+    assert.equal(r.verifiedMessages, 137);
+    assert.equal(r.dataDeleted, false);
+    assert.equal(r.destructiveOperations.length, 0);
+    assert.equal(r.tables.every(t => t.deleted === false && t.oldRows === "kept"), true);
+    assert.equal(r.supabase.dataDeleted, false);
+    const disk = JSON.parse(fromUtf8(new Uint8Array(await readFile(join(oDir, "decouple-report.json")))));
+    assert.equal(disk.status, "PREPARED");
+    const st = JSON.parse(fromUtf8(new Uint8Array(await readFile(join(oDir, "decouple-state.json")))));
+    assert.equal(st.supabaseLive, true);
+    assert.equal(st.status, "prepared-not-deployed");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+await t("boot decouple: پیام/تاریخچه به سوپا نمیرود، تو صف دستگاه میماند، restore سالم", async () => {
+  const calls = [];
+  const originalApi = async (p, o) => { calls.push(p); return { ok: true, status: 200, data: { success: true, from: "legacy" } }; };
+  const listeners2 = new Map();
+  const globals = {
+    api: originalApi,
+    me: { id: "u-2002" },
+    localStorage: { getItem: k => k === "mc_token" ? "tok2" : null },
+    document: { baseURI: "https://user.github.io/memechat/" },
+    location: { href: "https://user.github.io/memechat/" },
+    caches: mockCacheStorage(),
+    indexedDB: fakeIndexedDB(),
+    fetch: async () => ({ ok: false, status: 404, text: async () => "", arrayBuffer: async () => new ArrayBuffer(0) }),
+    addEventListener: (t, f) => { if (!listeners2.has(t)) listeners2.set(t, new Set()); listeners2.get(t).add(f); },
+    removeEventListener: (t, f) => { if (listeners2.has(t)) listeners2.get(t).delete(f); },
+    dispatchEvent: e => { const set = listeners2.get(e && e.type); if (set) for (const f of set) f(e); return true; },
+    CustomEvent: class { constructor(type) { this.type = type; } },
+  };
+  globals.console = { warn: () => {}, log: (...a) => REAL_CONSOLE.log(...a), error: (...a) => REAL_CONSOLE.error(...a) };
+  await withGlobals(globals, async () => {
+    const v2 = installMemeChatV2({ mode: "active", decouple: true, keyMode: "device", iceMode: "off", writerReady: false, pagesBase: "" });
+    assert.equal(v2.decouple, true);
+    assert.equal(v2.supabaseRole.dataDeleted, false);
+    const hist = await globalThis.api("/api/chat?action=history&topic=pv-a-b", { noCache: true });
+    assert.equal(hist.ok, false); assert.equal(hist.status, 503);
+    assert.equal(calls.some(c => c.includes("action=history")), false, "تاریخچه به سوپا برنگشت");
+    const sent = await globalThis.api("/api/chat?action=send", { method: "POST", body: { text: "جداشده" } });
+    assert.equal(sent.data.v2, "offline-queued-decoupled");
+    assert.equal(calls.some(c => c.includes("action=send")), false, "پیام به سوپا فرستاده نشد");
+    assert.equal(await v2.profile("sepehr"), null);
+    assert.equal(calls.some(c => c.includes("user-card")), false, "پروفایل خصوصی از سوپا خوانده نشد");
+    assert.equal((await v2.outbox.pending()).length, 1, "پیام تو صف دستگاه ماند");
+    const flushed = await v2.flush();
+    assert.equal(flushed.flushed, 0);
+    assert.equal(calls.some(c => c.includes("action=send")), false, "حتی شکست نویسنده هم برنگشت سوپا");
+    v2.restore();
+    assert.equal(globalThis.api, originalApi);
+    assert.equal(globalThis.MemeChatV2, undefined);
+  });
 });
 
 console.log(`\n${passed} tests passed.`);
