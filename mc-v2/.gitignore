@@ -1,0 +1,7 @@
+local-backup/
+local-out/
+backup/
+out/
+.export-key.txt
+*.enc
+node_modules/

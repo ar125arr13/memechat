@@ -1,0 +1,14 @@
+{
+  "name": "memechat-v2-archive",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MemeChat v2 — additive, non-destructive message/history architecture (not deployed)",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "backup": "node migration/backup.mjs --fixture --out ./local-backup",
+    "export": "node migration/export.mjs --backup ./local-backup --out ./local-out",
+    "verify": "node migration/verify.mjs --backup ./local-backup --out ./local-out"
+  },
+  "engines": { "node": ">=20" }
+}
