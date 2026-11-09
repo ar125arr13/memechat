@@ -76,12 +76,19 @@ export async function buildDecoupleReport({ backupDir, outDir } = {}) {
     destructiveOperations: destructive,
     oldRowsPolicy: "kept-until-explicit-confirmation",
     supabase: describeSupabaseRole(true),
+    accessControls: {
+      disabledWhenDecoupled: true,
+      items: ["منوی «دسترسی برنامه»", "دکمههای «فعال / غیرفعال» حریم خصوصی", "دکمهٔ «تنظیمات برنامه» / «درخواست»"],
+      reason: "جلوگیری از کلیک روی مسیری که بعد از جداسازی دیگر پاسخ نمیدهد",
+      reversible: true,
+    },
     tables,
     checklist: [
       "بکاپ کامل ۴۴ جدول گرفته شد (یا fixture تست)",
       "تکتک پیامها و هش جدولها تأیید شد",
       "بستههای ZIP رمزشده و پروفایل عمومی ساخته شد",
       "هیچ ردیف قدیمی پاک یا بازنویسی نشد",
+      "دکمهٔ دسترسیها تو حالت جداسازی خاموش میشود تا سایت به خطا نخورد",
       "سوپا بیس همچنان برای ورود/سیگنالینگ/نویسندهٔ امن زنده است",
       "خاموش کردن کامل سوپا فقط بعد از استقرار و تست بدون کاربر واقعی",
     ],
@@ -92,6 +99,7 @@ export async function buildDecoupleReport({ backupDir, outDir } = {}) {
     v: 2, kind: "memechat-v2-decouple-state", status: "prepared-not-deployed",
     supabaseLive: true, supabaseRoleAfterCutover: "control-plane-only",
     dataDeleted: false, oldRows: "kept",
+    accessButtonsDisabledWhenDecoupled: true,
     note: "جداسازی تو کد/گزارش انجام شد؛ سایت زنده و سوپا بیس دستنخوردهاند.",
   }, null, 2)));
   return report;

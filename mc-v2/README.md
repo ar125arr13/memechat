@@ -12,10 +12,11 @@
 |---|---|
 | بررسی کامل سورس فعلی (۶۸ فایل، هش تأیید شد) | ✅ `docs/REVIEW.md` |
 | راستیآزمایی ساختار زندهٔ دیتابیس (۴۴ جدول، فقط نام جدول/ستون) | ✅ `docs/REVIEW.md` |
-| نوشتن کد کامل و قابل اجرا | ✅ ۳۴ فایل، تستها سبزن |
-| تست خودکار (۲۰ تست، شامل انتقال ۱۳۷ پیام موبهمو و ۴۴ جدول) | ✅ `npm test` |
+| نوشتن کد کامل و قابل اجرا | ✅ ۳۵ فایل، تستها سبزن |
+| تست خودکار (۲۱ تست، شامل انتقال ۱۳۷ پیام موبهمو و ۴۴ جدول) | ✅ `npm test` |
 | STUN رایگان پیشفرض + مسیر امن TURN سمتسرور | ✅ `src/ice.js`، `docs/STUN-TURN.md` (TURN مستقر نشد) |
 | جداسازی نقش سوپا تو کد + گزارش «هیچی پاک نشد» | ✅ `src/plane.js`، `docs/DECOUPLE.md` (سوپای زنده خاموش نشد) |
+| دکمهٔ «غیرفعال دسترسیها» تو حالت جداسازی کلا خاموش | ✅ `src/access-guard.js`، قابل برگشت، سایت خطا نمیخورد |
 | کپی امن / تأیید / فعالسازی گامبهگام | ✅ `migration/` |
 | تغییر `index.html` زنده | ❌ **نشد** (فقط یه خط پیشنهادی تو `docs/ADD-ONE-LINE.md`) |
 | استقرار Edge Function / secret / CSP / `MC_API` | ❌ **نشد** |
@@ -70,6 +71,7 @@ mc-v2/
 │   ├── cache.js                   Cache API، هش/نسخه، جلوگیری از کهنه/خراب
 │   ├── ice.js                     STUN رایگان + TURN فقط از سرور، بدون رمز عمومی
 │   ├── plane.js                   مرز «داده» و «کنترل»؛ جلوگیری از حذف/بازگشت به سوپا
+│   ├── access-guard.js            خاموش کردن دکمهٔ دسترسیها تو حالت جداسازی
 │   ├── signaling.js               فقط اطلاعات اتصال، TTL، پاکسازی، فیلتر متن
 │   ├── rtc.js                     WebRTC + رمز سرتاسری + اثرانگشت هویت
 │   ├── key.js                     کلید دستگاه / نشست / تست
@@ -91,7 +93,7 @@ mc-v2/
 │   ├── activate.mjs               فقط بعد از PASS؛ قابل برگشت
 │   └── decouple.mjs               گزارش جداسازی سوپا؛ صفر حذف
 ├── tests/
-│   └── run.mjs                    ۲۰ تست، بدون وابستگی خارجی
+│   └── run.mjs                    ۲۱ تست، بدون وابستگی خارجی
 └── docs/
     ├── REVIEW.md                  نقشهٔ کامل سیستم فعلی قبل از تغییر
     ├── MIGRATION.md               چهار مرحلهٔ امن
@@ -104,7 +106,7 @@ mc-v2/
 
 ```bash
 cd mc-v2
-npm test                                     # 20 tests passed
+npm test                                     # 21 tests passed
 node migration/backup.mjs --fixture --out ./local-backup
 node migration/export.mjs --backup ./local-backup --out ./local-out
 node migration/verify.mjs --backup ./local-backup --out ./local-out

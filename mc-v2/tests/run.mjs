@@ -18,7 +18,8 @@ import { createOutbox, createPagesSink } from "../src/offline.js";
 import { assertConnectionOnly, createSignaling, signalingRoom } from "../src/signaling.js";
 import { normalizeIceServers, createIceProvider, redactIceServers, DEFAULT_STUN_SERVERS } from "../src/ice.js";
 import { resolvePeerIceServers } from "../src/rtc.js";
-import { assertControlPlaneOnly, createControlApi, describeSupabaseRole, assertNoDestructive, SupabaseDataPathForbidden } from "../src/plane.js";
+import { assertControlPlaneOnly, createControlApi, describeSupabaseRole, assertNoDestructive, assertNoForbiddenBody, SupabaseDataPathForbidden } from "../src/plane.js";
+import { disableAccessControls } from "../src/access-guard.js";
 import { buildDecoupleReport } from "../migration/decouple.mjs";
 import { handleV2 } from "../edge/v2-handler.js";
 import { installMemeChatV2 } from "../src/boot.js";
@@ -540,7 +541,10 @@ await t("جداسازی: فقط کنترل به سوپا میرود، دادهٔ
   const api = createControlApi(async (p) => { calls.push(p); return { ok: true, status: 200, data: {} }; }, { decouple: true });
   await api("/api/v2?action=ice");
   await assert.rejects(() => api("/api/chat?action=user-card&username=a"), SupabaseDataPathForbidden);
-  assert.equal(calls.length, 1);
+  await assert.rejects(() => api("/api/chat?action=profile", { method: "POST", body: { subAction: "set-priv", key: "msg", value: false } }), SupabaseDataPathForbidden);
+  await api("/api/chat?action=profile", { method: "POST", body: { subAction: "save", name: "x" } });
+  assert.equal(calls.length, 2);
+  assert.doesNotThrow(() => assertNoForbiddenBody("/api/chat?action=profile", { body: { subAction: "set-priv" } }, { decouple: false }));
   const role = describeSupabaseRole(true);
   assert.equal(role.dataDeleted, false);
   assert.equal(role.oldRows, "kept-until-explicit-confirmation");
@@ -564,6 +568,8 @@ await t("decouple report: ۴۴ جدول، صفر حذف، وضعیت PREPARED ف
     assert.equal(r.destructiveOperations.length, 0);
     assert.equal(r.tables.every(t => t.deleted === false && t.oldRows === "kept"), true);
     assert.equal(r.supabase.dataDeleted, false);
+    assert.equal(r.accessControls.disabledWhenDecoupled, true);
+    assert.equal(r.accessControls.reversible, true);
     const disk = JSON.parse(fromUtf8(new Uint8Array(await readFile(join(oDir, "decouple-report.json")))));
     assert.equal(disk.status, "PREPARED");
     const st = JSON.parse(fromUtf8(new Uint8Array(await readFile(join(oDir, "decouple-state.json")))));
@@ -580,11 +586,13 @@ await t("boot decouple: پیام/تاریخچه به سوپا نمیرود، ت�
     api: originalApi,
     me: { id: "u-2002" },
     localStorage: { getItem: k => k === "mc_token" ? "tok2" : null },
-    document: { baseURI: "https://user.github.io/memechat/" },
+    document: { baseURI: "https://user.github.io/memechat/", querySelectorAll: () => [] },
     location: { href: "https://user.github.io/memechat/" },
     caches: mockCacheStorage(),
     indexedDB: fakeIndexedDB(),
     fetch: async () => ({ ok: false, status: 404, text: async () => "", arrayBuffer: async () => new ArrayBuffer(0) }),
+    mcSetPriv: async () => { calls.push("mcSetPriv-called"); },
+    toast: () => {},
     addEventListener: (t, f) => { if (!listeners2.has(t)) listeners2.set(t, new Set()); listeners2.get(t).add(f); },
     removeEventListener: (t, f) => { if (listeners2.has(t)) listeners2.get(t).delete(f); },
     dispatchEvent: e => { const set = listeners2.get(e && e.type); if (set) for (const f of set) f(e); return true; },
@@ -594,7 +602,10 @@ await t("boot decouple: پیام/تاریخچه به سوپا نمیرود، ت�
   await withGlobals(globals, async () => {
     const v2 = installMemeChatV2({ mode: "active", decouple: true, keyMode: "device", iceMode: "off", writerReady: false, pagesBase: "" });
     assert.equal(v2.decouple, true);
+    assert.equal(v2.accessDisabled, true, "دکمهٔ دسترسیها خاموش شد");
     assert.equal(v2.supabaseRole.dataDeleted, false);
+    await globalThis.mcSetPriv("msg", false);
+    assert.equal(calls.includes("mcSetPriv-called"), false, "کلیک دسترسیها به مسیر قدیمی نرفت");
     const hist = await globalThis.api("/api/chat?action=history&topic=pv-a-b", { noCache: true });
     assert.equal(hist.ok, false); assert.equal(hist.status, 503);
     assert.equal(calls.some(c => c.includes("action=history")), false, "تاریخچه به سوپا برنگشت");
@@ -611,6 +622,57 @@ await t("boot decouple: پیام/تاریخچه به سوپا نمیرود، ت�
     assert.equal(globalThis.api, originalApi);
     assert.equal(globalThis.MemeChatV2, undefined);
   });
+});
+
+
+await t("دکمهٔ دسترسیها: تو حالت جداسازی کلا خاموش، ولی قابل برگشت", async () => {
+  function el(props) {
+    const attrs = Object.assign({}, props.attrs || {});
+    return Object.assign({
+      tagName: "DIV", textContent: "", style: {}, disabled: false, title: "",
+      onclick: props.onclick || null,
+      getAttribute(k) { return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null; },
+      setAttribute(k, v) { attrs[k] = String(v); },
+      removeAttribute(k) { delete attrs[k]; },
+    }, props);
+  }
+  const menu = el({ className: "it", textContent: "دسترسی برنامه ›",
+    attrs: { onclick: "permPanel()" }, onclick: function originalMenu() {} });
+  const priv = el({ tagName: "BUTTON", textContent: "غیرفعال",
+    attrs: { onclick: "mcSetPriv('msg',false)" }, onclick: function originalPriv() {} });
+  const perm = el({ tagName: "BUTTON", textContent: "تنظیمات برنامه",
+    attrs: { onclick: "openAppSettings()" }, onclick: function originalPerm() {} });
+  const other = el({ tagName: "BUTTON", textContent: "ذخیره", attrs: { onclick: "save()" } });
+  const nodes = [menu, priv, perm, other];
+  const doc = { querySelectorAll: () => nodes, body: {}, documentElement: {} };
+  let privCalls = 0, toasts = 0;
+  const g = {
+    mcSetPriv: async () => { privCalls++; },
+    permPanel: async () => {}, openAppSettings: async () => {}, mcPermRequest: async () => {},
+    toast: () => { toasts++; },
+  };
+  const originalMcSetPriv = g.mcSetPriv;
+  const guard = disableAccessControls({ g, doc });
+  assert.equal(guard.disabled >= 3, true);
+  assert.equal(menu.style.display, "none");
+  assert.equal(menu.onclick, null);
+  assert.equal(menu.getAttribute("data-mcv2-access"), "1");
+  assert.equal(priv.disabled, true);
+  assert.equal(priv.onclick, null);
+  assert.equal(perm.style.display, "none");
+  assert.equal(other.disabled, false, "دکمهٔ بیربط دستنخورده ماند");
+  assert.notEqual(g.mcSetPriv, originalMcSetPriv);
+  await g.mcSetPriv("msg", false);
+  assert.equal(privCalls, 0, "کلیک دیگر به مسیر قدیمی نمیرود");
+  assert.equal(toasts > 0, true, "به کاربر پیام ساده نشان داده شد");
+  guard.stop();
+  assert.equal(g.mcSetPriv, originalMcSetPriv, "تابع اصلی برگشت");
+  assert.equal(menu.style.display, undefined);
+  assert.equal(typeof menu.onclick, "function");
+  assert.equal(menu.getAttribute("data-mcv2-access"), null);
+  assert.equal(priv.disabled, false);
+  assert.equal(typeof priv.onclick, "function", "onclick اصلی برگشت");
+  assert.equal(priv.getAttribute("onclick"), "mcSetPriv('msg',false)");
 });
 
 console.log(`\n${passed} tests passed.`);

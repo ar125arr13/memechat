@@ -19,6 +19,7 @@ import { createPeerLink, rtcSupported } from "./rtc.js";
 import { createIceProvider, redactIceServers } from "./ice.js";
 import { createSignaling, signalingRoom } from "./signaling.js";
 import { createControlApi, describeSupabaseRole } from "./plane.js";
+import { disableAccessControls } from "./access-guard.js";
 
 export function installMemeChatV2(config = {}) {
   const g = globalThis;
@@ -84,7 +85,7 @@ export function installMemeChatV2(config = {}) {
   });
   const peers = new Map();
 
-  let installed = false, restoreFns = [], flushTimer = null;
+  let installed = false, restoreFns = [], flushTimer = null, accessGuard = null;
 
   function wrapGlobal(name, replacement) {
     const before = g[name];
@@ -176,6 +177,13 @@ export function installMemeChatV2(config = {}) {
       return controlApi(path, o);
     });
 
+    /* دکمهٔ «غیرفعال/فعال دسترسیها» تو حالت جداسازی کلا خاموش میشود
+       تا کاربر چیزی رو خاموش نکنه و سایت به مسیر قدیمی گیر نکنه. */
+    if (noSupabaseData && !accessGuard) {
+      accessGuard = disableAccessControls({ g, toast: g.toast });
+      restoreFns.push(() => { if (accessGuard) { accessGuard.stop(); accessGuard = null; } });
+    }
+
     /* جابهجایی حساب → کش همان حساب پاک میشود (قانون تفکیک دادههای محلی) */
     const stopWatch = login.startWatching();
     restoreFns.push(() => { if (typeof stopWatch === "function") stopWatch(); });
@@ -241,6 +249,7 @@ export function installMemeChatV2(config = {}) {
       outbox, cache: getCache, login, rtcSupported: rtcSupported(),
       ice, iceServers: async () => redactIceServers(await ice()),
       decouple: noSupabaseData, supabaseRole: describeSupabaseRole(noSupabaseData),
+      accessDisabled: noSupabaseData, accessGuard: () => accessGuard,
       originals, config: cfg,
     });
   }

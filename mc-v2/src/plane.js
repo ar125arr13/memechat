@@ -21,6 +21,10 @@ export const DATA_PATHS = Object.freeze([
   "action=message-file", "action=load-older",
 ]);
 
+/* دکمهٔ «فعال/غیرفعال» تو حریم خصوصی، پشتش `subAction=set-priv` به سوپا میرود.
+   تو حالت جداسازی نباید بشه زدش، وگرنه سایت به مسیر قدیمی گیر میکند. */
+export const FORBIDDEN_SUBACTIONS = Object.freeze(["set-priv"]);
+
 export class SupabaseDataPathForbidden extends Error {
   constructor(path) { super("SUPABASE_DATA_PATH_FORBIDDEN:" + path); this.name = "SupabaseDataPathForbidden"; }
 }
@@ -29,6 +33,18 @@ export class SupabaseDataPathForbidden extends Error {
 export function assertControlPlaneOnly(path, { decouple = false } = {}) {
   const p = String(path || "");
   if (decouple && DATA_PATHS.some(d => p.indexOf(d) >= 0)) throw new SupabaseDataPathForbidden(p);
+  return true;
+}
+
+/** نگهبان بدنهٔ درخواست: حتی اگه مسیر `/api/chat?action=profile` مجاز باشد،
+ *  زیرعمل «تغییر دسترسیها» تو حالت جداسازی ممنوع است. */
+export function assertNoForbiddenBody(path, opts, { decouple = false } = {}) {
+  if (!decouple) return true;
+  const body = opts && opts.body;
+  if (body && typeof body === "object") {
+    const sub = String(body.subAction || body.subaction || "");
+    if (FORBIDDEN_SUBACTIONS.includes(sub)) throw new SupabaseDataPathForbidden(String(path) + "?subAction=" + sub);
+  }
   return true;
 }
 
@@ -58,6 +74,7 @@ export function createControlApi(originalApi, { decouple = false } = {}) {
   if (typeof originalApi !== "function") throw new Error("CONTROL_API_REQUIRED");
   return async function controlApi(path, opts) {
     assertControlPlaneOnly(path, { decouple });
+    assertNoForbiddenBody(path, opts, { decouple });
     return originalApi(path, opts);
   };
 }
