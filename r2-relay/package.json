@@ -6,6 +6,7 @@
   "description": "MemeChat second database: default token-free Rubika manual courier, plus optional official Bale Bot API direct-message carrier. No Vercel, no frontend secrets, no deletion.",
   "scripts": {
     "test": "node tests/run.mjs",
+    "test:client": "node tests/run.mjs",
     "test:rubika": "node rubika/tests/run.mjs",
     "test:bale": "node bale/tests/run.mjs",
     "test:all": "node tests/run.mjs && node rubika/tests/run.mjs && node bale/tests/run.mjs",

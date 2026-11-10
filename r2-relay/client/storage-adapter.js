@@ -8,6 +8,12 @@ import {
   encryptChunk, decryptChunk, chunkBytes, concatBytes,
 } from '../worker/src/crypto.js';
 import { makePackets, joinPackets, RUBIKA_MANUAL_COURIER } from './courier.js';
+import {
+  BaleDirectClient, encodePacketForBale, decodePacketFromBale,
+  BALE_DIRECT_DESTINATION, REQUIRED_CSP_CONNECT_SRC,
+} from './bale-direct.js';
+
+export { BALE_DIRECT_DESTINATION, REQUIRED_CSP_CONNECT_SRC, encodePacketForBale, decodePacketFromBale };
 
 export class StorageDriver {
   constructor(name) { this.name = name; }
@@ -120,6 +126,69 @@ export class RubikaCourierDriver extends StorageDriver {
 // نام قدیمی برای سازگاری با تستها/کد قبلی؛ همان درایور روبیکاست.
 export const ManualCourierDriver = RubikaCourierDriver;
 
+/* ------------------------------------------------------------------ *
+ * مسیر تازه: API رسمی بله **مستقیم از سورس کلاینت**، بدون بکاند.
+ * توکن/چتآیدی فقط موقع اجرا داده میشود؛ هیچ رازی تو سورس نیست.
+ * بستههای رمزشده (ciphertext) برای «بازوهای بیکار» فرستاده میشوند.
+ * صفر حذف؛ نسخهٔ محلی همیشه نگه داشته میشود تا تأیید ممکن باشد.
+ * ------------------------------------------------------------------ */
+export class BaleDirectDriver extends StorageDriver {
+  constructor({
+    token = '', chatIds = [], fetchImpl = globalThis.fetch,
+    minIntervalMs = 600, allowOpaque = true, chunkSize = 900, onProgress,
+  } = {}) {
+    super(BALE_DIRECT_DESTINATION);
+    this.client = new BaleDirectClient({ token, chatIds, fetchImpl, minIntervalMs, allowOpaque });
+    this.store = new Map();
+    this.confirmed = new Map();
+    this.chunkSize = chunkSize;
+    this.onProgress = onProgress;
+    this.lastDelivery = null;
+  }
+
+  async put(k, b) {
+    const bytes = new Uint8Array(b);
+    const sha = await sha256Hex(bytes);
+    // هم نسخهٔ staging و هم نسخهٔ قابلخواندن محلی میماند؛ هیچی پاک نمیشود.
+    this.store.set(k, bytes);
+    this.store.set(`blob/${sha}`, bytes);
+    const packets = await makePackets(bytes, { id: k, chunkSize: this.chunkSize });
+    if (!this.client.configured) {
+      throw new Error('BALE_RUNTIME_CONFIG_MISSING: توکن/چتآیدی فقط موقع اجرا، نه تو سورس');
+    }
+    this.lastDelivery = await this.client.sendPackets({ packets, onProgress: this.onProgress });
+    return { key: k, packets: packets.length, delivery: this.lastDelivery };
+  }
+
+  async import(k, packets) {
+    const { bytes } = await joinPackets(packets);
+    const sha = await sha256Hex(bytes);
+    this.store.set(k, bytes);
+    this.store.set(`blob/${sha}`, bytes);
+    return bytes;
+  }
+
+  async get(k) { const v = this.store.get(k); if (!v) throw new Error(`missing ${k}`); return new Uint8Array(v); }
+  async has(k) { return this.store.has(k); }
+  async delete(_k) {
+    throw new Error('BALE_NO_DELETE: هیچ ردیف/بچهای تو این مسیر پاک نمیشود');
+  }
+
+  async confirm(manifest, packets) {
+    const { bytes, meta } = await joinPackets(packets);
+    if ((await sha256Hex(bytes)) !== manifest.envelopeSha256) {
+      throw Object.assign(new Error('BALE_HASH_MISMATCH'), { retainedInPrimary: true, deleted: false });
+    }
+    const entry = {
+      ok: true, batchId: manifest.batchId, verifiedSha: meta.sha,
+      packetCount: packets.length, deleted: false, retainedInPrimary: true,
+      officialApiUsed: true, vercelUsed: false, backend: false,
+    };
+    this.confirmed.set(manifest.batchId, entry);
+    return entry;
+  }
+}
+
 export async function publishEncrypted({ driver, plain, key, chunkSize = 256 * 1024, batchId, aad = '' }) {
   const id = batchId || hex(randomBytes(12));
   const wholeSha = await sha256Hex(plain);
@@ -174,6 +243,29 @@ export async function publishForRubika({ driver, plain, key, chunkSize = 256 * 1
     noDelete: true,
     deleted: false,
     destructiveOperations: [],
+  };
+}
+
+/* همان publishEncrypted، ولی مقصد «بازوهای بیکار بله» است و از سورس کلاینت،
+   بدون بکاند. چون هر put با موفقیت ارسال شد، وضعیت confirmed گذاشته میشود
+   تا readEncrypted همان نسخهٔ محلی را بخواند؛ هیچ حذفی در کار نیست. */
+export async function publishForBaleDirect({ driver, plain, key, chunkSize = 256 * 1024, batchId, aad = '' }) {
+  const manifest = await publishEncrypted({ driver, plain, key, chunkSize, batchId, aad });
+  return {
+    ...manifest,
+    status: 'confirmed',
+    destination: BALE_DIRECT_DESTINATION,
+    officialApiUsed: true,
+    backend: false,
+    vercelUsed: false,
+    frontendSecrets: false,
+    tokenSuppliedAtRuntime: true,
+    requiredCspConnectSrc: REQUIRED_CSP_CONNECT_SRC,
+    primaryRowsUntouched: true,
+    noDelete: true,
+    deleted: false,
+    destructiveOperations: [],
+    confirmedAt: new Date().toISOString(),
   };
 }
 

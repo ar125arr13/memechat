@@ -9,4 +9,6 @@ Supabase دستنخوردهاند.
 
 مسیر اختیاری تازه (بدون حذف مسیر بالا): **ارسال پیام مستقیم با API رسمی بله**،
 باز هم بدون ورسل و بدون راز تو فرانتاند:
-[`docs/MESSENGER-API-BALE.md`](docs/MESSENGER-API-BALE.md).
+[`docs/MESSENGER-API-BALE.md`](docs/MESSENGER-API-BALE.md). کد همان API بهصورت
+**مستقیم تو سورس کلاینت و بدون بکاند** هم اضافه شد:
+`r2-relay/client/bale-direct.js` (بخش ۷ همان سند).

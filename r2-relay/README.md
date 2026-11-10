@@ -68,7 +68,9 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 | `bale/api.mjs`, `bale/cli.mjs`, `bale/mock.mjs`, `bale/tests/run.mjs` | کانکتور اختیاری API رسمی بله برای ارسال پیام مستقیم (۱۳ تست آفلاین) |
 | `client/courier.js` | کوریر دستی حالا مسیر **فعال** است، نه پارکشده |
 | `client/storage-adapter.js` | `RubikaCourierDriver` + `verifyRubikaDelivery` بدون هیچ حذف |
-| `tests/run.mjs` | ۱۳ تست (۹ قدیمی + ۴ جدید «عدم حذف») |
+| `client/bale-direct.js` | **کد کامل API بله تو سورس کلاینت**، بدون بکاند؛ ارسال بستههای رمزشده به بازوهای بیکار |
+| `client/storage-adapter.js` | `BaleDirectDriver` + `publishForBaleDirect` کنار درایورهای قبلی، بدون حذف |
+| `tests/run.mjs` | ۱۸ تست (۱۳ قدیمی + ۵ جدید «بله مستقیم از سورس») |
 
 درایورهای قدیمی `R2Driver` / `HttpStorageDriver` / `MemoryDriver` و
 `verifyAndCommit` همچنان برای تست باقیاند؛ مسیر روبیکا از `verifyRubikaDelivery`
@@ -78,7 +80,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 
 ```bash
 cd /home/user/memechat/r2-relay
-npm run test:all                 # 13 + 8 + 13 تست سبز
+npm run test:all                 # 18 + 8 + 13 = 39 تست سبز
 
 # تست کاملاً آفلاین، بدون رمز و بدون سرویس
 npm run rubika:export:fixture
@@ -115,6 +117,15 @@ node bale/cli.mjs send-packets \
 جزئیات و API دقیق: `../docs/MESSENGER-API-BALE.md` و `bale/README.md`.
 بدون `--fixture` فقط `BALE_BOT_TOKEN` / `BALE_CHAT_ID` تو محیط امن سرور خوانده
 میشوند؛ هیچ توکن واقعی تو این مخزن نیست.
+
+### مسیر تازه: همان API **داخل سورس کلاینت**، بدون بکاند
+
+`client/bale-direct.js` دقیقاً همان تماس `sendMessage` را تو سورس نگه میدارد و
+`BaleDirectDriver` آن را به `publishForBaleDirect` وصل میکند. بستههای رمزشده
+مستقیم از مرورگر برای چند «بازوی بیکار» میروند؛ نه CLI، نه سرور، نه ورسل.
+توکن/چتآیدی فقط موقع اجرا داده میشود، هیچ مقداری تو سورس نیست. محدودیتهای
+واقعی `connect-src` و CORS تو بخش ۷ همان سند نوشته شدهاند؛ CSP زنده بدون
+اجازه دست نخورد.
 
 ## چی انجام نشد (و نباید ادعا شود)
 

@@ -87,6 +87,8 @@ Content-Type: application/json
 | `r2-relay/bale/mock.mjs` | شبیهساز آفلاین، بدون شبکه و بدون راز واقعی |
 | `r2-relay/bale/tests/run.mjs` | ۱۳ تست آفلاین |
 | `r2-relay/bale/README.md` | راهنمای کامل اجرا |
+| `r2-relay/client/bale-direct.js` | **کد API تو سورس کلاینت، بدون بکاند** (بخش ۷) |
+| `r2-relay/client/storage-adapter.js` | `BaleDirectDriver` / `publishForBaleDirect` کنار درایورهای موجود |
 | `r2-relay/rubika/adapter.mjs` | فقط یک مقصد اختیاری `bale-bot-api` اضافه شد؛ پیشفرض همان کوریر دستی است |
 | `r2-relay/rubika/cli.mjs` | `export --destination bale` اضافه شد؛ قدیمیها دستنخورده |
 | `r2-relay/package.json`, `r2-relay/README.md`, `r2-relay/.gitignore` | اسکریپت تست، اشارهٔ کوتاه، ignore کردن `bale/out/` |
@@ -97,7 +99,10 @@ Content-Type: application/json
 
 ---
 
-## ۵. تنها کارهایی که صاحب پروژه انجام میدهد (بدون نوشتن کد)
+## ۵. مسیر سروری (CLI): تنها کارهایی که صاحب پروژه انجام میدهد
+
+> مسیر **بدون بکاند / تو سورس کلاینت** بخش ۷ است؛ این بخش مال همان کانکتور
+> سروری است که حذف نشده و کوریر دستی روبیکا هم سر جای خودش است.
 
 1. تو بله به `@botfather` پیام بده، یه بازو بساز، توکن را پیش خودت نگه دار.
 2. به همان بازو `/start` بده.
@@ -128,7 +133,9 @@ node r2-relay/rubika/cli.mjs verify \
 
 ## ۶. قوانینی که رعایت شد
 
-- ✅ فقط سرور؛ هیچ راز/کلیدی تو فرانتاند، `index.html`، CSP، چت یا لاگ.
+- ✅ مسیر سروری (بخش ۵): هیچ راز/کلیدی تو فرانتاند، `index.html`، CSP، چت یا لاگ.
+- ✅ مسیر کلاینت (بخش ۷، تازه): فقط **کد** API تو سورس است؛ توکن/چتآیدی
+  صرفاً موقع اجرا داده میشود و هیچ مقداری تو سورس، لاگ، گزارش یا چت نیست.
 - ✅ **بدون ورسل** (همان دستور قبلی همچنان پابرجاست).
 - ✅ بدون GitHub API، بدون API خصوصی روبیکا، بدون scraping، بدون مهندسی معکوس.
 - ✅ دیتابیس اصلی Supabase فقط `SELECT`؛ صفر `PATCH` / `DELETE` / `RESET`.
@@ -139,7 +146,77 @@ node r2-relay/rubika/cli.mjs verify \
 
 ---
 
-## ۷. منابع
+## ۷. درخواست بعدی: «API تو سورس باشه، بدون بکاند»
+
+صاحب پروژه بعداً گفت: «نه میخوام api بگیرم که وصلش کنم به سورس کد که فایلای
+رمزگزاریشده رو بفرسته برای بازوهای بیکار و بدون بکاند» و «api توی سورس باشع».
+یعنی بهجای CLI سروری، **همان تماس API داخل سورس کلاینت** باشد و بستههای
+ciphertext مستقیم بروند برای چند بازوی بیکار (رباتهایی که فقط `/start` خوردهاند
+و کاری نمیکنند).
+
+انجام شد، additive، بدون خراب کردن مسیر قبلی:
+
+| فایل | کار |
+|---|---|
+| `r2-relay/client/bale-direct.js` | **کد کامل API تو سورس**: `https://tapi.bale.ai/bot<TOKEN>/sendMessage`، `getMe`، `getUpdates`، `sendPackets`، کدگذاری امن `MCB1`، قرمزکردن رازها، فنآوت به چند بازو |
+| `r2-relay/client/storage-adapter.js` | `BaleDirectDriver` + `publishForBaleDirect` دقیقاً کنار درایورهای موجود؛ از همان `publishEncrypted` و `readEncrypted` استفاده میکند |
+| `r2-relay/tests/run.mjs` | ۵ تست تازه (جمعاً ۱۸ تست) |
+
+نمونهٔ واقعی همان چیزی که تو سورس است:
+
+```js
+import { BaleDirectDriver, publishForBaleDirect, readEncrypted } from './client/storage-adapter.js';
+
+// token / chatIds فقط موقع اجرا؛ هیچ مقداری تو سورس نیست.
+const driver = new BaleDirectDriver({
+  token: runtimeToken,
+  chatIds: ['<chat-id-bot-1>', '<chat-id-bot-2>'],  // بازوهای بیکار
+  fetchImpl: fetch,
+});
+
+const manifest = await publishForBaleDirect({ driver, plain: encryptedBytes, key });
+// هر بستهٔ MCPK1 رمزشده → یک پیام مستقیم به هر بازو
+const back = await readEncrypted({ driver, manifest, key, prefix: 'blob' });
+```
+
+خروجی `sendPackets` صادقانه است: `backend:false`، `vercelUsed:false`،
+`frontendSecretInSource:false`، `tokenSuppliedAtRuntime:true`، `deleted:false`،
+`retainedInPrimary:true`، `destructiveOperations:[]`.
+
+### دو محدودیتی که وانمود نشد
+
+1. **CSP.** `index.html` زنده الان اینطور است:
+   `connect-src 'self' https://teylquevemmkrgswnwtx.supabase.co` و
+   `form-action 'self'`. تماس مستقیم مرورگر به `tapi.bale.ai` توسط CSP بلاک
+   میشود. خط لازم (فقط برای وقتی که خودتان اجازهٔ تغییر زنده بدهید):
+
+   ```
+   connect-src 'self' https://teylquevemmkrgswnwtx.supabase.co https://tapi.bale.ai
+   ```
+
+   چون `index.html` زنده مال این مخزن نیست و قبلاً گفتید معماری فعلی خراب
+   نشود، **این خط بدون اجازه اعمال نشد**. ثابت `REQUIRED_CSP_CONNECT_SRC`
+   تو سورس هست تا دقیقاً معلوم باشد چی لازم است.
+2. **CORS.** مستندات رسمی بله دربارهٔ دسترسی از مرورگر چیزی نگفته و از داخل
+   این محیط نمیشد به آن دامنه درخواست زد تا تست شود؛ برای تلگرام هم یک ایشوی
+   ۲۰۲۶ صریحاً میگوید تست مرورگر واقعی «انجام نشده» [9](https://github.com/AbrarulHaque8541/daymark/issues/700)،
+   و وبحوک دیسکورد از کنسول مرورگر معمولاً به واسطه نیاز دارد [10](https://stackoverflow.com/questions/75818217/how-can-i-send-a-message-to-a-discord-webhook-through-a-browser-console).
+   پس کد طوری نوشته شد که اگر پاسخ خواندنی نبود، با `mode:'no-cors'` ارسال
+   انجام شود ولی `verified:false` / `unverifiedCount` گزارش گردد؛ **ادعای
+   «رسید» نمیکنیم**. CORS جلوی خواندن پاسخ را میگیرد، نه اصل ارسال را [11](https://thecodeforge.io/javascript/cors-policy-error/).
+
+یعنی «کد API تو سورس + بدون بکاند» انجام شد؛ «تضمین تحویل از مرورگر» بدون
+تأیید CORS/CSP بله قابل ادعا نیست. و همچنان **هیچ توکنی تو سورس نرفت** چون
+خودتان گفته بودید کلیدها تو فرانتاند نباشند. اگر منظورتان دقیقاً این بود که
+**خودِ توکن هم بهصورت متن تو سورس نوشته شود**، آن یک استثنای صریح میخواهد؛
+بدون آن انجام نمیشود، چون توکن لو میرود و هر کسی کنترل بازو را میگیرد [12](https://medium.com/@cameronbardin/hardcoded-secrets-strike-again-how-a-telegram-bot-token-exposed-customer-support-and-pii-cb412551239b).
+
+هیچ استقرار، تغییر `index.html` زنده، تغییر CSP، تغییر `MC_API`، ادغام PR،
+حذف ردیف یا تماس واقعی به بله انجام **نشد**.
+
+---
+
+## ۸. منابع
 
 1. مستندات رسمی بازوی بله — <https://docs.bale.ai/>
 2. معرفی بله بهعنوان پیامرسان داخلی (بدون فیلترشکن) — <https://barato.ir/bale-android/>
@@ -149,3 +226,7 @@ node r2-relay/rubika/cli.mjs verify \
 6. وبحوک دیسکورد و توکن داخل URL — <https://docs.discord.food/resources/webhook>
 7. FAQ رسمی ایتا دربارهٔ نداشتن API کلاینت — <https://my.eitaa.com/faq/29>
 8. صفحهٔ رسمی ساخت بازو در بله — <https://dev.bale.ai>
+9. ایشوی ۲۰۲۶: CORS مرورگر واقعی برای Bot API «تست نشده» — <https://github.com/AbrarulHaque8541/daymark/issues/700>
+10. ارسال وبحوک دیسکورد از کنسول مرورگر — <https://stackoverflow.com/questions/75818217/how-can-i-send-a-message-to-a-discord-webhook-through-a-browser-console>
+11. CORS جلوی خواندن پاسخ را میگیرد، نه اصل درخواست را — <https://thecodeforge.io/javascript/cors-policy-error/>
+12. نمونهٔ واقعی لو رفتن توکن بات تو کد کلاینت و تصاحب بازو — <https://medium.com/@cameronbardin/hardcoded-secrets-strike-again-how-a-telegram-bot-token-exposed-customer-support-and-pii-cb412551239b>
