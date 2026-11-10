@@ -70,6 +70,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 | `client/storage-adapter.js` | `RubikaCourierDriver` + `verifyRubikaDelivery` بدون هیچ حذف |
 | `client/bale-direct.js` | **کد کامل API بله تو سورس کلاینت**، بدون بکاند؛ ارسال بستههای رمزشده به بازوهای بیکار |
 | `client/storage-adapter.js` | `BaleDirectDriver` + `publishForBaleDirect` کنار درایورهای قبلی، بدون حذف |
+| `primary/router.mjs`, `primary/tests/run.mjs` | لایهٔ «دیتابیس اصلی»: بله تعیینشده، پروب شکست خورد، سوپا موقتاً فعال (۹ تست) |
 | `tests/run.mjs` | ۱۸ تست (۱۳ قدیمی + ۵ جدید «بله مستقیم از سورس») |
 
 درایورهای قدیمی `R2Driver` / `HttpStorageDriver` / `MemoryDriver` و
@@ -80,7 +81,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 
 ```bash
 cd /home/user/memechat/r2-relay
-npm run test:all                 # 18 + 8 + 13 = 39 تست سبز
+npm run test:all                 # 18 + 8 + 13 + 9 = 48 تست سبز
 
 # تست کاملاً آفلاین، بدون رمز و بدون سرویس
 npm run rubika:export:fixture
@@ -127,6 +128,21 @@ node bale/cli.mjs send-packets \
 واقعی `connect-src` و CORS تو بخش ۷ همان سند نوشته شدهاند؛ CSP زنده بدون
 اجازه دست نخورد.
 
+### درخواست بعدی: «بله رو دیتابیس اصلی بکن؛ اگه خراب شد موقت بزارش رو سوپا»
+
+`primary/router.mjs` دقیقاً همین را پیاده کرد: `designatedPrimary = bale`،
+`activePrimary = supabase` با `temporary:true`. `tryPromoteBale()` قابلیتها را
+واقعاً پروب میکند؛ چون بله پیامرسان است نه دیتابیس (کوئری/تراکنش/ایندکس/OTP/
+ذخیرهٔ پایدار ندارد، ۴۰۹۶ کاراکتر و ۲۴ ساعت سقف دارد)، `repair()` بدون پاک
+کردن هیچ ردیفی سوپا را موقتاً فعال نگه میدارد. برگشتپذیر است.
+
+```bash
+npm run test:primary
+```
+
+سند کامل: `../docs/PRIMARY-DB-BALE.md`. روبیکا هم بهعنوان `legacy/غیرفعال`
+علامت خورد ولی **حذف نشد**.
+
 ## چی انجام نشد (و نباید ادعا شود)
 
 - هیچ استقرار، دیپلوی، مرج، تغییر `main`، تغییر Edge / `dist.cjs` / `index.html`.
@@ -135,5 +151,8 @@ node bale/cli.mjs send-packets \
   endpoint خصوصی. (کانکتور اختیاری بله فقط کد است؛ توکن واقعی نساختیم.)
 - هیچ کلیدی تو فرانتاند، تو لاگ، تو چت یا تو مخزن عمومی.
 - هیچ ادعای «روبیکا شد دیتابیس کوئریپذیر»؛ نشد و بدون API رسمی نمیشود.
+- هیچ ادعای «بله شد دیتابیس اصلی»؛ فقط «تعیینشده» است، سوپا همچنان زنده و
+  موقتاً فعال است. لاگین/OTP/چت/تاریخچه/`rt-*` تغییر نکردند.
 
-سند تصمیم، محدودیتها و فهرست کامل فایلها: `../docs/SECOND-DB-RUBIKA.md`.
+سند تصمیم، محدودیتها و فهرست کامل فایلها: `../docs/SECOND-DB-RUBIKA.md` و
+`../docs/PRIMARY-DB-BALE.md`.

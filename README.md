@@ -12,3 +12,7 @@ Supabase دستنخوردهاند.
 [`docs/MESSENGER-API-BALE.md`](docs/MESSENGER-API-BALE.md). کد همان API بهصورت
 **مستقیم تو سورس کلاینت و بدون بکاند** هم اضافه شد:
 `r2-relay/client/bale-direct.js` (بخش ۷ همان سند).
+
+آخرین درخواست («بله رو دیتابیس اصلی بکن؛ اگه خراب شد موقت بزارش رو سوپا»):
+[`docs/PRIMARY-DB-BALE.md`](docs/PRIMARY-DB-BALE.md). بله **تعیینشده** است،
+پروب قابلیتها شکست خورد، و Supabase بدون حذف هیچ ردیفی **موقتاً فعال** ماند.
