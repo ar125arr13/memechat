@@ -10,6 +10,8 @@
     "test:rubika": "node rubika/tests/run.mjs",
     "test:bale": "node bale/tests/run.mjs",
     "test:primary": "node primary/tests/run.mjs",
+    "primary:trial": "node primary/cli.mjs trial --fixture --duration-ms 3000",
+    "primary:status": "node primary/cli.mjs status",
     "test:all": "node tests/run.mjs && node rubika/tests/run.mjs && node bale/tests/run.mjs && node primary/tests/run.mjs",
     "rubika:export": "node rubika/cli.mjs export",
     "rubika:export:fixture": "node rubika/cli.mjs export --fixture",

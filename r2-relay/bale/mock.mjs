@@ -107,6 +107,49 @@ export function mockFetchForPackets(packets) {
   };
 }
 
+/* تست چرخهٔ کامل «بله بهعنوان اصلی»: هر پیام ارسالشده را دقیقاً همانطور
+   تو getUpdates برمیگرداند تا بشود فایل رمزشده را پس گرفت و SHA را تأیید کرد. */
+export function mockEchoFetch() {
+  const sent = [];
+  const fetchImpl = async (url, options = {}) => {
+    const method = methodFromUrl(url);
+    if (method === 'sendMessage') {
+      let body = {};
+      try { body = JSON.parse(options.body || '{}'); } catch { body = {}; }
+      if (!body.chat_id || !body.text) return response(null, { ok: false, status: 400 });
+      sent.push(body.text);
+      return response({
+        message_id: 100 + sent.length,
+        chat: { id: Number(body.chat_id), type: 'private' },
+        text: body.text,
+      });
+    }
+    if (method === 'getUpdates') {
+      return response([
+        {
+          update_id: 1,
+          message: {
+            message_id: 10,
+            chat: { id: Number(FIXTURE_CHAT_ID), type: 'private' },
+            text: '/start',
+          },
+        },
+        ...sent.map((text, i) => ({
+          update_id: i + 2,
+          message: {
+            message_id: 20 + i,
+            chat: { id: Number(FIXTURE_CHAT_ID), type: 'private' },
+            text,
+          },
+        })),
+      ]);
+    }
+    return mockFetch(url, options);
+  };
+  fetchImpl.sent = sent;
+  return fetchImpl;
+}
+
 export function mockRateLimitFetch() {
   return Promise.resolve({
     ok: false,

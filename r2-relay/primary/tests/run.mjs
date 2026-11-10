@@ -21,7 +21,11 @@ const {
 const { TABLES } = await import(new URL('../../rubika/adapter.mjs', import.meta.url).href);
 const {
   FIXTURE_ENV, FIXTURE_TOKEN, FIXTURE_CHAT_ID, mockFetch,
+  mockEchoFetch, mockRateLimitFetch,
 } = await import(new URL('../../bale/mock.mjs', import.meta.url).href);
+const {
+  BalePrimaryTrial, DEFAULT_TRIAL_MS, MAX_TRIAL_MS,
+} = await import(new URL('../trial.mjs', import.meta.url).href);
 
 let passed = 0;
 const test = async (name, fn) => {
@@ -176,6 +180,90 @@ await test('سورس router فقط دامنهٔ رسمی بله را دارد؛ 
   assert.equal(src.includes('https://tapi.bale.ai'), true);
   const cjk = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
   assert.equal(cjk.test(src), false);
+});
+
+/* ---------------- تست محدودزمانی «الان تنظیمش کن روی بله» ---------------- */
+
+await test('trial: بله چند ثانیه فعال شد، فایل رمزشده رفت و برگشت و SHA تأیید شد', async () => {
+  const router = new PrimaryDbRouter({ supabase: fakeSupabase() });
+  const trial = new BalePrimaryTrial({
+    router, token: FIXTURE_TOKEN, chatId: FIXTURE_CHAT_ID,
+    fetchImpl: mockEchoFetch(), env: FIXTURE_ENV, durationMs: 2000,
+  });
+  const r = await trial.run();
+  assert.equal(r.blocked, null);
+  assert.equal(r.ok, true);
+  assert.equal(r.activeDuringTrial, DESIGNATED_PRIMARY);
+  assert.equal(r.activeAfter, ACTIVE_FALLBACK);
+  assert.equal(r.temporaryAfter, true);
+  assert.equal(r.repaired, true);
+  assert.equal(r.reversible, true);
+  assert.ok(r.autoRepairReason);
+  assert.equal(r.roundTrip.verified, true);
+  assert.equal(r.roundTrip.encryption, 'AES-256-GCM');
+  assert.equal(r.roundTrip.receivedCount, r.roundTrip.packetCount);
+  assert.equal(r.roundTrip.envelopeSha256, r.roundTrip.restoredSha256);
+  assert.equal(r.dataDeleted, false);
+  assert.deepEqual(r.destructiveOperations, []);
+  assert.equal(r.retainedInPrimary, true);
+  assert.equal(router.status().activePrimary, ACTIVE_FALLBACK);
+  assert.equal(router.assertIntegrity().ok, true);
+  const blob = JSON.stringify(r);
+  assert.equal(blob.includes(FIXTURE_TOKEN), false);
+  assert.equal(blob.includes(FIXTURE_CHAT_ID), false);
+});
+
+await test('trial: اگه بله خراب شود، باز هم خودکار و فوری برمیگردد رو سوپا', async () => {
+  const router = new PrimaryDbRouter({ supabase: fakeSupabase() });
+  const trial = new BalePrimaryTrial({
+    router, token: FIXTURE_TOKEN, chatId: FIXTURE_CHAT_ID,
+    fetchImpl: mockRateLimitFetch, env: FIXTURE_ENV, durationMs: 1000,
+  });
+  const r = await trial.run();
+  assert.equal(r.ok, false);
+  assert.ok(String(r.error).includes('BALE_429'));
+  assert.equal(r.activeAfter, ACTIVE_FALLBACK);
+  assert.equal(r.repaired, true);
+  assert.equal(r.dataDeleted, false);
+  assert.deepEqual(r.destructiveOperations, []);
+  assert.equal(router.status().activePrimary, ACTIVE_FALLBACK);
+  assert.ok(router.status().incidents.length >= 1);
+});
+
+await test('trial: سقف مدت رعایت میشود (درخواست بیش از ۵ دقیقه clamp میشود)', () => {
+  const router = new PrimaryDbRouter({ supabase: fakeSupabase() });
+  const trial = new BalePrimaryTrial({
+    router, token: FIXTURE_TOKEN, chatId: FIXTURE_CHAT_ID,
+    fetchImpl: mockFetch, env: FIXTURE_ENV, durationMs: MAX_TRIAL_MS + 60_000,
+  });
+  assert.equal(trial.durationMs, MAX_TRIAL_MS);
+  assert.equal(trial.durationClamped, true);
+  assert.equal(DEFAULT_TRIAL_MS, 30_000);
+  assert.equal(trial.status().config.ready, true);
+});
+
+await test('trial: بدون توکن/چتآیدی هیچ تماسی برقرار نمیشود و سوپا دستنخورده میماند', async () => {
+  const router = new PrimaryDbRouter({ supabase: fakeSupabase() });
+  const trial = new BalePrimaryTrial({
+    router, token: '', chatId: '', fetchImpl: mockEchoFetch(), env: {}, durationMs: 1000,
+  });
+  const r = await trial.run();
+  assert.equal(r.ok, false);
+  assert.equal(r.blocked, 'NO_RUNTIME_CREDENTIALS');
+  assert.equal(r.activeAfter, ACTIVE_FALLBACK);
+  assert.equal(router.status().activePrimary, ACTIVE_FALLBACK);
+  assert.equal(r.dataDeleted, false);
+});
+
+await test('trial: حین تست نوشتن به سوپا بلاک است تا چیزی عوض نشود', async () => {
+  const router = new PrimaryDbRouter({ supabase: fakeSupabase() });
+  router.active = DESIGNATED_PRIMARY;
+  await assert.rejects(
+    () => router.write('mimchat_staging_messages', { note: 'safe' }),
+    /NON_SUPABASE_PRIMARY_NOT_ALLOWED/,
+  );
+  router.rollbackToSupabase();
+  assert.equal(router.status().activePrimary, ACTIVE_FALLBACK);
 });
 
 console.log(`\n${passed} tests passed.`);

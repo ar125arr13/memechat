@@ -70,7 +70,8 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 | `client/storage-adapter.js` | `RubikaCourierDriver` + `verifyRubikaDelivery` بدون هیچ حذف |
 | `client/bale-direct.js` | **کد کامل API بله تو سورس کلاینت**، بدون بکاند؛ ارسال بستههای رمزشده به بازوهای بیکار |
 | `client/storage-adapter.js` | `BaleDirectDriver` + `publishForBaleDirect` کنار درایورهای قبلی، بدون حذف |
-| `primary/router.mjs`, `primary/tests/run.mjs` | لایهٔ «دیتابیس اصلی»: بله تعیینشده، پروب شکست خورد، سوپا موقتاً فعال (۹ تست) |
+| `primary/router.mjs` | لایهٔ «دیتابیس اصلی»: بله تعیینشده، پروب شکست خورد، سوپا موقتاً فعال |
+| `primary/trial.mjs`, `primary/cli.mjs`, `primary/tests/run.mjs` | **تست محدودزمانی**: بله چند ثانیه فعال، فایل رمزشده رفت/برگشت + SHA، برگشت خودکار به سوپا (۱۴ تست) |
 | `tests/run.mjs` | ۱۸ تست (۱۳ قدیمی + ۵ جدید «بله مستقیم از سورس») |
 
 درایورهای قدیمی `R2Driver` / `HttpStorageDriver` / `MemoryDriver` و
@@ -81,7 +82,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 
 ```bash
 cd /home/user/memechat/r2-relay
-npm run test:all                 # 18 + 8 + 13 + 9 = 48 تست سبز
+npm run test:all                 # 18 + 8 + 13 + 14 = 53 تست سبز
 
 # تست کاملاً آفلاین، بدون رمز و بدون سرویس
 npm run rubika:export:fixture
@@ -138,10 +139,19 @@ node bale/cli.mjs send-packets \
 
 ```bash
 npm run test:primary
+npm run primary:trial      # همان تست محدودزمانی، آفلاین و امن
+npm run primary:status
 ```
 
-سند کامل: `../docs/PRIMARY-DB-BALE.md`. روبیکا هم بهعنوان `legacy/غیرفعال`
-علامت خورد ولی **حذف نشد**.
+درخواست بعدی «الان تنظیمش کن روی بله ببینیم کار میکنه؟ عیبی نداره اگه مدت کمی
+باشه» هم اجرا شد: `primary/trial.mjs` بله را فقط چند ثانیه فعال کرد، فایل
+AES-256-GCM فرستاد/پس گرفت/تأیید SHA کرد، و تو `finally` حتی در خطا خودکار به
+سوپا برگرداند. خروجی واقعی: `✅ کار کرد | 1/1 بسته | SHA تأیید: true | صفر حذف`.
+تست **واقعی** به `BALE_BOT_TOKEN` / `BALE_CHAT_ID` تو محیط امن سرور نیاز دارد؛
+بدون آن هیچ تماسی زده نشد و گزارش صادقانه `NO_RUNTIME_CREDENTIALS` داد.
+
+سند کامل: `../docs/PRIMARY-DB-BALE.md` (بخش ۶). روبیکا هم بهعنوان
+`legacy/غیرفعال` علامت خورد ولی **حذف نشد**.
 
 ## چی انجام نشد (و نباید ادعا شود)
 
@@ -153,6 +163,8 @@ npm run test:primary
 - هیچ ادعای «روبیکا شد دیتابیس کوئریپذیر»؛ نشد و بدون API رسمی نمیشود.
 - هیچ ادعای «بله شد دیتابیس اصلی»؛ فقط «تعیینشده» است، سوپا همچنان زنده و
   موقتاً فعال است. لاگین/OTP/چت/تاریخچه/`rt-*` تغییر نکردند.
+- هیچ تماس **واقعی** به `tapi.bale.ai` زده نشد (تست محدودزمانی با
+  `mockEchoFetch` آفلاین بود)؛ بدون توکن محیط امن، گزارش صادقانه میگوید انجام نشد.
 
 سند تصمیم، محدودیتها و فهرست کامل فایلها: `../docs/SECOND-DB-RUBIKA.md` و
 `../docs/PRIMARY-DB-BALE.md`.
