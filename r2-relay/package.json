@@ -1,11 +1,17 @@
 {
-  "name": "memechat-r2-relay-prototype",
-  "version": "0.1.0",
+  "name": "memechat-second-db-rubika",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Prototype: encrypted multi-provider blob relay with Cloudflare R2 as control plane. NOT deployed, NOT wired into the live app.",
+  "description": "MemeChat second database on Rubika via a manual encrypted courier. No official Rubika API, no Vercel, no frontend secrets, no deletion.",
   "scripts": {
-    "test": "node tests/run.mjs"
+    "test": "node tests/run.mjs",
+    "test:rubika": "node rubika/tests/run.mjs",
+    "test:all": "node tests/run.mjs && node rubika/tests/run.mjs",
+    "rubika:export": "node rubika/cli.mjs export",
+    "rubika:export:fixture": "node rubika/cli.mjs export --fixture",
+    "rubika:verify": "node rubika/cli.mjs verify",
+    "rubika:status": "node rubika/cli.mjs status"
   },
   "engines": { "node": ">=20" }
 }

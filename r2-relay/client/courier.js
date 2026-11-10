@@ -1,12 +1,23 @@
-// "No API" courier — for channels such as Rubika when a bot token is dead/blocked.
-// It does NOT scrape, does NOT reverse-engineer private endpoints and needs NO token.
-// A human copies short text packets into a chat (or QR) and pastes them back.
-// Everything is ciphertext: the carrier sees only opaque text.
+// «کوریر دستی» — مسیر فعال دیتابیس دوم MemeChat روی روبیکا، بدون API رسمی.
+// قبلاً صرفاً نمونهٔ پارکشده بود؛ با درخواست تازهٔ صاحب پروژه فعال شد.
+// همچنان: بدون scraping، بدون مهندسی معکوس پروتکل خصوصی، بدون توکن،
+// بدون endpoint خصوصی، بدون ورسل. انسان بستهها را کپی میکند توی حساب خودش.
+// همهچیز ciphertext است؛ حامل فقط متن کدرا میبیند.
 
 import { b64url, unb64url, utf8, fromUtf8, sha256Hex, randomBytes, hex, concatBytes } from '../worker/src/crypto.js';
 
 const MAGIC = 'MCPK1';          // MemeChat Packet v1
 export const PACKET_VERSION = 1;
+
+export const RUBIKA_MANUAL_COURIER = Object.freeze({
+  destination: 'rubika-manual-courier',
+  officialApiUsed: false,
+  vercelUsed: false,
+  frontendSecrets: false,
+  deletes: false,
+  carrier: 'انسان: پیامهای ذخیرهشده / کانال خصوصی خودش در روبیکا',
+  note: 'بدون API رسمی، بدون ربات، بدون توکن، بدون حساب جدید.',
+});
 
 export function makePackets(bytes, { chunkSize = 900, id, mime = 'application/octet-stream', name = 'payload.bin' } = {}) {
   if (!(bytes instanceof Uint8Array)) throw new TypeError('bytes must be Uint8Array');

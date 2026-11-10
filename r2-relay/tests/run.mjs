@@ -7,10 +7,11 @@ import {
   utf8, fromUtf8, sha256Hex, randomBytes, deriveAesKey,
   encryptChunk, decryptChunk, concatBytes, chunkBytes, unb64url,
 } from '../worker/src/crypto.js';
-import { makePackets, joinPackets } from '../client/courier.js';
+import { makePackets, joinPackets, RUBIKA_MANUAL_COURIER } from '../client/courier.js';
 import {
-  MemoryDriver, ManualCourierDriver, publishEncrypted,
-  verifyAndCommit, readEncrypted,
+  MemoryDriver, ManualCourierDriver, RubikaCourierDriver,
+  publishEncrypted, publishForRubika, verifyAndCommit,
+  verifyRubikaDelivery, readEncrypted,
 } from '../client/storage-adapter.js';
 
 let passed = 0;
@@ -64,7 +65,7 @@ await test('no-API courier: missing or corrupt packet is detected', async () => 
   await assert.rejects(() => joinPackets(broken), /corrupt packet|payload hash|size mismatch|bad packet/);
 });
 
-await test('publish -> verify -> commit -> read (verify-before-delete)', async () => {
+await test('publish -> verify -> commit -> read (legacy verify-before-delete)', async () => {
   const driver = new MemoryDriver();
   const plain = randomBytes(600000);            // forces 3 chunks at 256 KiB
   const manifest = await publishEncrypted({ driver, plain, key, batchId: 'batch-abc' });
@@ -97,7 +98,7 @@ await test('verification failure keeps EVERY staged byte (no deletion)', async (
   for (const c of manifest.chunks) assert.equal(await driver.has(c.stageKey), true);
 });
 
-await test('ManualCourierDriver exports packets and re-imports them', async () => {
+await test('ManualCourierDriver (alias RubikaCourierDriver) exports and re-imports', async () => {
   let exported = null;
   const driver = new ManualCourierDriver({ onExport: (_k, p) => { exported = p; }, chunkSize: 300 });
   const bytes = utf8('فایل رمزگذاری شده برای روبیکا، بدون API');
@@ -106,6 +107,56 @@ await test('ManualCourierDriver exports packets and re-imports them', async () =
   const other = new ManualCourierDriver();
   await other.import('chat-msg-1', exported);
   assert.equal(fromUtf8(await other.get('chat-msg-1')), fromUtf8(bytes));
+});
+
+/* ---------------- تستهای معماری تازهٔ دیتابیس دوم ---------------- */
+
+await test('کوریر روبیکا: بدون API رسمی، بدون ورسل، بدون حذف', async () => {
+  assert.equal(RUBIKA_MANUAL_COURIER.officialApiUsed, false);
+  assert.equal(RUBIKA_MANUAL_COURIER.vercelUsed, false);
+  assert.equal(RUBIKA_MANUAL_COURIER.deletes, false);
+  const driver = new RubikaCourierDriver();
+  await assert.rejects(() => driver.delete('anything'), /NO_DELETE/);
+});
+
+await test('publishForRubika: منیفست صراحتاً «حذف ممنوع» دارد', async () => {
+  const driver = new MemoryDriver();
+  const plain = utf8('بچ آرشیو دیتابیس دوم');
+  const manifest = await publishForRubika({ driver, plain, key, batchId: 'rubika-1', chunkSize: 64 });
+  assert.equal(manifest.destination, 'rubika-manual-courier');
+  assert.equal(manifest.noDelete, true);
+  assert.equal(manifest.deleted, false);
+  assert.equal(manifest.primaryRowsUntouched, true);
+  assert.deepEqual(manifest.destructiveOperations, []);
+});
+
+await test('verifyRubikaDelivery: همهٔ بایتها میمانند، صفر حذف، خواندن سالم', async () => {
+  const driver = new MemoryDriver();
+  const plain = randomBytes(5000);
+  const manifest = await publishForRubika({ driver, plain, key, batchId: 'rubika-2', chunkSize: 512 });
+  const confirmed = await verifyRubikaDelivery({ driver, manifest });
+  assert.equal(confirmed.status, 'confirmed');
+  assert.equal(confirmed.deleted, false);
+  assert.deepEqual(confirmed.deletedKeys, []);
+  assert.deepEqual(confirmed.destructiveOperations, []);
+  for (const c of manifest.chunks) {
+    assert.equal(await driver.has(c.stageKey), true, 'staging هم باید بماند');
+    assert.equal(await driver.has(`rubika/${c.sha}`), true, 'نسخهٔ روبیکا هم ساخته شد');
+  }
+  assert.deepEqual(await readEncrypted({ driver, manifest: confirmed, key, prefix: 'rubika' }), plain);
+});
+
+await test('RubikaCourierDriver.confirm: هش پاکت تأیید میشود، باز هم صفر حذف', async () => {
+  const bytes = utf8('بستهٔ برگشتی از پیامهای ذخیرهشدهٔ روبیکا');
+  const packets = await makePackets(bytes, { id: 'rb-1', chunkSize: 40 });
+  const manifest = { batchId: 'rb-1', envelopeSha256: await sha256Hex(bytes) };
+  const driver = new RubikaCourierDriver();
+  const report = await driver.confirm(manifest, packets);
+  assert.equal(report.ok, true);
+  assert.equal(report.deleted, false);
+  assert.equal(report.retainedInPrimary, true);
+  assert.equal(report.officialApiUsed, false);
+  assert.equal(report.vercelUsed, false);
 });
 
 console.log(`\n${passed} tests passed.`);

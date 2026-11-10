@@ -1,21 +1,33 @@
 #!/usr/bin/env bash
-# Push repo2-scaffold as the initial commit of the NEW GitHub repo.
-# Run ONLY after the target GitHub repo exists AND this connection has write access to it.
+# بهروزشده: دیگر «پوش به ریپوی دوم GitHub» انجام نمیشود.
+# فقط بستههای رمزشدهٔ دیتابیس دوم (روبیکا / کوریر دستی) ساخته میشوند.
+# بدون ورسل، بدون GitHub API، بدون gh، بدون توکن، بدون حذف داده.
 set -euo pipefail
-REMOTE="${1:-https://github.com/zahradavoodi69-code/memechat-dataa.git}"
-SRC="$(cd "$(dirname "$0")" && pwd)"
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
 
-git init -q -b main "$WORK"
-cp "$SRC/README.md" "$SRC/.gitignore" "$WORK/"
-mkdir -p "$WORK/docs"
-cp "$SRC/docs/PLAN.md" "$WORK/docs/"
-cd "$WORK"
-git add -A
-git -c user.name="Arena Agent" -c user.email="agent@arena.ai" \
-  commit -q -m "MemeChat second repo: encrypted archive / static blob destination (no secrets, no user data)"
-git remote add origin "$REMOTE"
-git push -u origin main
-echo "Pushed -> $REMOTE"
-echo "Verify: gh repo view ar125arr13/memechat-data"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+CLI="$HERE/../r2-relay/rubika/cli.mjs"
+MODE="${1:-fixture}"
+
+command -v node >/dev/null 2>&1 || { echo "node نصب نیست."; exit 1; }
+[ -f "$CLI" ] || { echo "ابزار پیدا نشد: $CLI"; exit 1; }
+
+if [ "$MODE" = "fixture" ]; then
+  node "$CLI" export --fixture
+  node "$CLI" verify --fixture
+  node "$CLI" status
+  echo "تست آفلاین تمام شد. هیچ سرویس/کلید/توکن/ورسلی لمس نشد."
+  exit 0
+fi
+
+if [ "$MODE" = "real" ]; then
+  : "${SUPABASE_URL:?SUPABASE_URL تو محیط امن تنظیم نشده}"
+  : "${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY تو محیط امن تنظیم نشده}"
+  : "${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY تو محیط امن تنظیم نشده}"
+  node "$CLI" export
+  echo "بستهها آماده شدند؛ آنها را کپی کنید توی پیامهای ذخیرهشدهٔ روبیکای خودتان."
+  echo "دیتابیس اصلی فقط خوانده شد؛ صفر حذف / صفر تغییر / صفر ورسل / صفر GitHub."
+  exit 0
+fi
+
+echo "حالت نامعتبر. استفاده: bash publish.sh [fixture|real]"
+exit 2
