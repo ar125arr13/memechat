@@ -1,17 +1,23 @@
 {
-  "name": "memechat-second-db-rubika",
-  "version": "0.2.0",
+  "name": "memechat-second-db",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "MemeChat second database on Rubika via a manual encrypted courier. No official Rubika API, no Vercel, no frontend secrets, no deletion.",
+  "description": "MemeChat second database: default token-free Rubika manual courier, plus optional official Bale Bot API direct-message carrier. No Vercel, no frontend secrets, no deletion.",
   "scripts": {
     "test": "node tests/run.mjs",
     "test:rubika": "node rubika/tests/run.mjs",
-    "test:all": "node tests/run.mjs && node rubika/tests/run.mjs",
+    "test:bale": "node bale/tests/run.mjs",
+    "test:all": "node tests/run.mjs && node rubika/tests/run.mjs && node bale/tests/run.mjs",
     "rubika:export": "node rubika/cli.mjs export",
     "rubika:export:fixture": "node rubika/cli.mjs export --fixture",
+    "rubika:export:bale:fixture": "node rubika/cli.mjs export --destination bale --fixture",
     "rubika:verify": "node rubika/cli.mjs verify",
-    "rubika:status": "node rubika/cli.mjs status"
+    "rubika:status": "node rubika/cli.mjs status",
+    "bale:status": "node bale/cli.mjs status --fixture",
+    "bale:chat-id": "node bale/cli.mjs chat-id --fixture",
+    "bale:send:fixture": "node bale/cli.mjs send --text \"سلام\" --fixture",
+    "bale:help": "node bale/cli.mjs help"
   },
   "engines": { "node": ">=20" }
 }

@@ -1,8 +1,10 @@
-/* MemeChat — «دیتابیس دوم» روی روبیکا، بدون API رسمی و بدون ورسل.
+/* MemeChat — هستهٔ مشترک «دیتابیس دوم».
  *
- * این ماژول فقط سمتسرور/ترمینال امن اجرا میشود. هیچ تماسی با روبیکا،
- * GitHub API، ورسل یا مرورگر ندارد. تنها خروجیاش «بستههای متنی رمزشده» است
- * که یک انسان کپی میکند توی حساب شخصی خودش در روبیکا.
+ * این ماژول فقط سمتسرور/ترمینال امن اجرا میشود. خروجیاش «بستههای متنی
+ * رمزشدهٔ MCPK1» است. مقصد پیشفرض همان کوریر دستی روبیکا (بدون API) است؛
+ * بهصورت اختیاری میتواند با API رسمی «بله» هم فرستاده شود
+ * (docs/MESSENGER-API-BALE.md). در هر دو حالت: بدون ورسل، بدون GitHub API،
+ * بدون مرورگر، بدون کلید تو فرانتاند، بدون PATCH / DELETE / RESET به Supabase.
  *
  * قانون ثابت: فقط SELECT از دیتابیس اصلی؛ صفر PATCH / DELETE / RESET.
  */
@@ -14,7 +16,8 @@ import {
 import { makePackets, joinPackets } from '../client/courier.js';
 
 export const SECOND_DB_KIND = 'memechat-second-db-rubika';
-export const DESTINATION = 'rubika-manual-courier';
+export const DESTINATION = 'rubika-manual-courier';   // پیشفرض، بدون توکن
+export const BALE_DESTINATION = 'bale-bot-api';        // مسیر اختیاری با API رسمی
 export const PACKET_MAGIC = 'MCPK1';
 
 /* همان نام جدولها و فیلدهای زنده؛ عمداً دستنخورده میمانند. */
@@ -125,14 +128,14 @@ export async function readPrimary({ base, serviceKey, fetchImpl = fetch, pageSiz
   return out;
 }
 
-export function buildEnvelope(tables, batchId) {
+export function buildEnvelope(tables, batchId, destination = DESTINATION) {
   return {
     kind: SECOND_DB_KIND,
     batchId,
     exportedAt: new Date().toISOString(),
     source: 'supabase-primary-readonly',
-    destination: DESTINATION,
-    officialApiUsed: false,
+    destination,
+    officialApiUsed: destination === BALE_DESTINATION,
     vercelUsed: false,
     frontendSecrets: false,
     primaryRowsUntouched: true,
@@ -143,10 +146,11 @@ export function buildEnvelope(tables, batchId) {
 
 export async function prepareBatch({
   tables, rawKey, batchId = `mc-${Date.now().toString(36)}-${nodeCrypto.randomBytes(4).toString('hex')}`,
-  chunkSize = 900, fetchImpl = null,
+  chunkSize = 900, fetchImpl = null, destination = DESTINATION,
 } = {}) {
   if (!tables) throw new Error('TABLES_REQUIRED');
-  const envelope = buildEnvelope(tables, batchId);
+  if (![DESTINATION, BALE_DESTINATION].includes(destination)) throw new Error('UNSUPPORTED_DESTINATION');
+  const envelope = buildEnvelope(tables, batchId, destination);
   const protectedEnvelope = encryptEnvelope(envelope, rawKey);
   const envelopeBytes = utf8(JSON.stringify(protectedEnvelope));
   const envelopeSha256 = await sha256Hex(envelopeBytes);
@@ -165,8 +169,8 @@ export async function prepareBatch({
     v: 2,
     kind: SECOND_DB_KIND,
     batchId,
-    destination: DESTINATION,
-    officialApiUsed: false,
+    destination,
+    officialApiUsed: destination === BALE_DESTINATION,
     vercelUsed: false,
     frontendSecrets: false,
     primaryRowsUntouched: true,
@@ -181,7 +185,7 @@ export async function prepareBatch({
     packetCount: packets.length,
     packetMagic: PACKET_MAGIC,
     chunkSize,
-    note: 'هیچ ردیفی از دیتابیس اصلی پاک یا تغییر نکرد؛ روبیکا فقط ciphertext میبیند.',
+    note: 'هیچ ردیفی از دیتابیس اصلی پاک یا تغییر نکرد؛ حامل فقط ciphertext میبیند.',
   };
   assertNoForbiddenText(manifest, packets.join('\n'));
   return { manifest, packets, envelopeSha256 };
@@ -199,7 +203,10 @@ export async function verifyBatch({ manifest, packets, rawKey } = {}) {
   }
   const protectedEnvelope = JSON.parse(fromUtf8(bytes));
   const envelope = decryptEnvelope(protectedEnvelope, rawKey);
-  if (envelope.destination !== DESTINATION || envelope.officialApiUsed !== false || envelope.vercelUsed !== false) {
+  const expectedOfficialApi = envelope.destination === BALE_DESTINATION;
+  if (![DESTINATION, BALE_DESTINATION].includes(envelope.destination)
+      || envelope.officialApiUsed !== expectedOfficialApi
+      || envelope.vercelUsed !== false) {
     throw Object.assign(new Error('ENVELOPE_POLICY_MISMATCH'), { retainedInPrimary: true, deleted: false });
   }
   for (const [name, expected] of Object.entries(manifest.rowCounts)) {
@@ -216,7 +223,8 @@ export async function verifyBatch({ manifest, packets, rawKey } = {}) {
     envelopeSha256: actualSha,
     packetCount: packets.length,
     rowCounts: manifest.rowCounts,
-    officialApiUsed: false,
+    destination: envelope.destination,
+    officialApiUsed: envelope.officialApiUsed,
     vercelUsed: false,
     frontendSecrets: false,
     primaryRowsUntouched: true,
