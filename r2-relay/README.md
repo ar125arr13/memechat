@@ -71,7 +71,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 | `client/bale-direct.js` | **کد کامل API بله تو سورس کلاینت**، بدون بکاند؛ ارسال بستههای رمزشده به بازوهای بیکار |
 | `client/storage-adapter.js` | `BaleDirectDriver` + `publishForBaleDirect` کنار درایورهای قبلی، بدون حذف |
 | `primary/router.mjs` | لایهٔ «دیتابیس اصلی»: بله تعیینشده، پروب شکست خورد، سوپا موقتاً فعال |
-| `primary/trial.mjs`, `primary/cli.mjs`, `primary/real-test.sh`, `primary/tests/run.mjs` | **تست محدودزمانی + تست واقعی**: بله چند ثانیه فعال، فایل رمزشده رفت/برگشت + SHA، برگشت خودکار به سوپا، پیشچک توکن (۱۶ تست) |
+| `primary/trial.mjs`, `primary/cli.mjs`, `primary/real-test.sh`, `primary/get-bridge.mjs`, `primary/bridge-cli.mjs`, `primary/tests/run.mjs` | **تست محدودزمانی + تست واقعی + پل GET**: بله چند ثانیه فعال، فایل رمزشده رفت/برگشت + SHA، برگشت خودکار به سوپا، پیشچک توکن، اجرا توسط عامل بدون دستور به صاحب پروژه (۲۱ تست) |
 | `tests/run.mjs` | ۱۸ تست (۱۳ قدیمی + ۵ جدید «بله مستقیم از سورس») |
 
 درایورهای قدیمی `R2Driver` / `HttpStorageDriver` / `MemoryDriver` و
@@ -82,7 +82,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 
 ```bash
 cd /home/user/memechat/r2-relay
-npm run test:all                 # 18 + 8 + 13 + 16 = 55 تست سبز
+npm run test:all                 # 18 + 8 + 13 + 21 = 60 تست سبز
 
 # تست کاملاً آفلاین، بدون رمز و بدون سرویس
 npm run rubika:export:fixture

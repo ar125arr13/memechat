@@ -63,6 +63,26 @@ export function trialConfig({ token = '', chatId = '', fetchImpl = null } = {}) 
   };
 }
 
+/* ساخت بستههای رمزشدهٔ تست. هم CLI/Trial و هم پل GET از همین تابع استفاده
+   میکنند تا SHA و قالب بستهها یکی باشد. */
+export async function buildTrialPackets(rawKey = FIXTURE_RAW_KEY, at = null) {
+  const envelope = encryptEnvelope({
+    kind: TRIAL_KIND,
+    at: at || new Date().toISOString(),
+    sample: 'بستهٔ تستی رمزشده؛ بله فقط ciphertext میبیند',
+  }, rawKey);
+  const bytes = utf8(JSON.stringify(envelope));
+  const sha256 = await sha256Hex(bytes);
+  const packets = await makePackets(bytes, {
+    id: `trial-${Date.now().toString(36)}`,
+    chunkSize: 900,
+    mime: 'application/json',
+    name: 'trial.enc.json',
+  });
+  const texts = packets.map((p) => encodePacketForBale(p, {}));
+  return { packets, texts, sha256, bytes, envelope };
+}
+
 /* پیشچک تست واقعی: فقط از محیط امن میخواند، هیچ مقداری چاپ/ذخیره نمیکند.
    مشخص میکند آیا توکن معتبر است و آیا getUpdates از بله پاسخ میدهد. */
 export async function runPreflight({
@@ -265,24 +285,11 @@ export class BalePrimaryTrial {
 
   async _roundTrip(rawKey) {
     // ۱) فایل رمزشدهٔ واقعی (همان قالب AES-256-GCM قدیمی).
-    const envelope = encryptEnvelope({
-      kind: TRIAL_KIND,
-      at: this.now(),
-      sample: 'بستهٔ تستی رمزشده؛ بله فقط ciphertext میبیند',
-    }, rawKey);
-    const bytes = utf8(JSON.stringify(envelope));
-    const wholeSha = await sha256Hex(bytes);
-    const packets = await makePackets(bytes, {
-      id: `trial-${Date.now().toString(36)}`,
-      chunkSize: 900,
-      mime: 'application/json',
-      name: 'trial.enc.json',
-    });
+    const { packets, texts, sha256: wholeSha } = await buildTrialPackets(rawKey, this.now());
 
     // ۲) ارسال تکتک بستهها به بازو با API رسمی.
     const sent = [];
-    for (const packet of packets) {
-      const text = encodePacketForBale(packet, this.env);
+    for (const text of texts) {
       const r = await sendDirectMessage({
         chatId: this.chatId, token: this.token,
         fetchImpl: this.fetchImpl, env: this.env, text,

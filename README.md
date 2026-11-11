@@ -21,4 +21,7 @@ Supabase دستنخوردهاند.
 SHA تأیید شد، و بله خودکار به سوپا برگشت. تست واقعی با
 `./r2-relay/primary/real-test.sh` و تنظیم `BALE_BOT_TOKEN` / `BALE_CHAT_ID` تو
 محیط امن سرور انجام میشود؛ توکن هرگز تو چت/سورس نمیآید. بدون آن تماسی زده نشد.
-با توکن قلابی، خودِ بله `401 Unauthorized` داد.
+با توکن قلابی، خودِ بله `401 Unauthorized` داد. پل GET هم ساخته شد
+(`r2-relay/primary/get-bridge.mjs`) تا وقتی صاحب پروژه توکن بدهد، **خود عامل**
+از همان محیط `getMe → getUpdates → sendMessage → تأیید SHA` را اجرا کند، بیآنکه
+به او دستور ترمینال بدهد؛ جزئیات `docs/PRIMARY-DB-BALE.md` بخش ۸.

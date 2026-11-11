@@ -24,8 +24,14 @@ const {
   mockEchoFetch, mockRateLimitFetch,
 } = await import(new URL('../../bale/mock.mjs', import.meta.url).href);
 const {
-  BalePrimaryTrial, runPreflight, DEFAULT_TRIAL_MS, MAX_TRIAL_MS,
+  BalePrimaryTrial, runPreflight, buildTrialPackets,
+  DEFAULT_TRIAL_MS, MAX_TRIAL_MS,
 } = await import(new URL('../trial.mjs', import.meta.url).href);
+const {
+  buildBaleGetUrl, buildTrialPlan, buildPreflightUrls,
+  parseBaleResponse, verifyGetUpdatesResponse, discoveredChatId,
+  redactUrl, GET_BRIDGE_KIND,
+} = await import(new URL('../get-bridge.mjs', import.meta.url).href);
 
 let passed = 0;
 const test = async (name, fn) => {
@@ -292,6 +298,85 @@ await test('preflight: بدون توکن، تست واقعی بلاک میشود
   assert.equal(r.getMeOk, false);
   assert.equal(r.updatesReachable, false);
   assert.equal(r.dataDeleted, false);
+});
+
+/* ------------- پل GET: اجرا توسط عامل، بدون دستور به صاحب پروژه ------------- */
+
+await test('bridge: URL ساخته میشود و %5F داخل query به %255F تبدیل میگردد', () => {
+  const url = buildBaleGetUrl({
+    token: '123:FAKE', method: 'sendMessage',
+    params: { chat_id: '987654321', text: 'MCB1.ab%5Fcd' },
+  });
+  assert.equal(url.startsWith('https://tapi.bale.ai/bot123:FAKE/sendMessage?'), true);
+  assert.equal(url.includes('text=MCB1.ab%255Fcd'), true, 'باید دوبار encode شود');
+  assert.equal(url.includes('chat_id=987654321'), true);
+  assert.equal(new URL(url).searchParams.get('text'), 'MCB1.ab%5Fcd');
+});
+
+await test('bridge: plan قرمزشده است، هیچ رازی چاپ نمیکند و SHA دارد', async () => {
+  const p = await buildTrialPlan({ token: '123:FAKE', chatId: '987654321', emit: false });
+  assert.equal(p.kind, GET_BRIDGE_KIND);
+  assert.equal(p.emit, false);
+  assert.equal(p.packetCount, 1);
+  assert.ok(/^[0-9a-f]{64}$/.test(p.expectedSha256));
+  const blob = JSON.stringify(p);
+  assert.equal(blob.includes('123:FAKE'), false);
+  assert.equal(blob.includes('987654321'), false);
+  assert.equal(blob.includes('[REDACTED]'), true);
+  assert.equal(p.dataDeleted, false);
+  assert.deepEqual(p.destructiveOperations, []);
+});
+
+await test('bridge: emit URL کامل میدهد؛ preflight شامل getMe و getUpdates است', async () => {
+  const p = await buildTrialPlan({ token: '123:FAKE', chatId: '987654321', emit: true });
+  assert.equal(p.preflight.getMe.includes('/getMe'), true);
+  assert.equal(p.preflight.getUpdates.includes('/getUpdates'), true);
+  assert.equal(p.sends[0].url.includes('/sendMessage?'), true);
+  assert.equal(p.verifyUrl.includes('/getUpdates'), true);
+  const pre = buildPreflightUrls({ token: '123:FAKE' });
+  assert.equal(pre.kind, GET_BRIDGE_KIND);
+  assert.equal(redactUrl(pre.getMe, { token: '123:FAKE' }).includes('123:FAKE'), false);
+});
+
+await test('bridge: پاسخ fetch_page (داخل ```json) پارس و SHA موبهمو تأیید میشود', async () => {
+  const built = await buildTrialPackets();
+  const content = '```json\n' + JSON.stringify({
+    ok: true,
+    result: built.texts.map((text, i) => ({
+      update_id: i + 1,
+      message: { message_id: 50 + i, chat: { id: 987654321, type: 'private' }, text },
+    })),
+  }) + '\n```';
+  const body = parseBaleResponse(content);
+  assert.equal(body.ok, true);
+  assert.equal(discoveredChatId(content), '987654321');
+  const r = await verifyGetUpdatesResponse({ content, expectedSha256: built.sha256 });
+  assert.equal(r.verified, true);
+  assert.equal(r.receivedCount, built.texts.length);
+  assert.equal(r.restoredSha256, built.sha256);
+  assert.equal(r.dataDeleted, false);
+});
+
+await test('bridge:SHA غلط یا پاسخ خطادار رد میشود، بدون حذف چیزی', async () => {
+  const built = await buildTrialPackets();
+  const content = JSON.stringify({
+    ok: true,
+    result: built.texts.map((text, i) => ({
+      update_id: i + 1,
+      message: { message_id: 50 + i, chat: { id: 987654321 }, text },
+    })),
+  });
+  const bad = await verifyGetUpdatesResponse({ content, expectedSha256: 'f'.repeat(64) });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.verified, false);
+  assert.equal(bad.dataDeleted, false);
+  await assert.rejects(
+    () => verifyGetUpdatesResponse({
+      content: '{"ok":false,"error_code":401,"description":"Unauthorized"}',
+      expectedSha256: built.sha256,
+    }),
+    /BALE_401/,
+  );
 });
 
 console.log(`\n${passed} tests passed.`);
