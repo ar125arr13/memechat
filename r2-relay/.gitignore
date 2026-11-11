@@ -11,6 +11,8 @@ node_modules/
 # هرگز.commit نشود؛ فقط تو محیط امن میماند.
 rubika/out/
 maxrubika/out/
+internet-archive/out/
+*.mcia
 
 # سشن حساب شخصی MAXRubika شامل auth/private_key است؛ هرگز commit نشود.
 *.session

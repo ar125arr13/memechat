@@ -1,0 +1,16 @@
+{
+  "_source": "نمونهای از پاسخ واقعی GET https://archive.org/metadata/stats (بدون توکن)، که هنگام پیادهسازی این مسیر گرفته شد. رکورد آخر (mcia/...) ساختگی است تا مسیر فیلتر تست شود.",
+  "created": 1794378600,
+  "d1": "ia601602.us.archive.org",
+  "dir": "/3/items/stats",
+  "files": [
+    { "name": "__ia_thumb.jpg", "source": "original", "mtime": "1612332157", "size": "7621", "format": "JPEG Thumb", "md5": "388df8593863e985edc6da07758aea7c", "crc32": "b25b25b2", "sha1": "0250e4bc726fb44d4880c00dcfc02c7183fbf7b2" },
+    { "name": "bandwidthCogent.png", "source": "original", "format": "PNG", "md5": "817dc5204a9389caf701cc2de4f5539b", "mtime": "1244444405", "size": "37550", "crc32": "6eaf17ba", "sha1": "417ffd1c2a226409c36c133d0a55598fdb09f03c" },
+    { "name": "downloadsPerDay.sqlite", "source": "original", "format": "Unknown", "md5": "84d945204199da1ff8ce1ddef6a9d721", "mtime": "1244433613", "size": "5120", "crc32": "1eaa62c5", "sha1": "5aaa0992ecdbafbc53378a04c2b80ea631989ab0" },
+    { "name": "numUniqueIPs.sqlite", "source": "original", "format": "Unknown", "mtime": "1246417030", "size": "2048", "md5": "e103ed4b78643f38619ea6167a851950", "crc32": "6a66976c", "sha1": "c431f888e9c7e7a5e3a5b40d8ef9c780991855e8" },
+    { "name": "stats_files.xml", "source": "original", "format": "Metadata", "md5": "c740aa69c12c47dec78e224df397806a", "summation": "md5" },
+    { "name": "stats_meta.sqlite", "source": "original", "mtime": "1794377923", "size": "4913152", "format": "Unknown" },
+    { "name": "stats_archive.torrent", "source": "metadata", "btih": "e39f977a9bca8a13d0714c121d9a652e863c4c1a", "mtime": "1794378049", "size": "828514", "md5": "c1f779bfbdde99bc45dfa458be6be89c", "format": "Archive BitTorrent" },
+    { "name": "mcia/memechat-second-db/batch-1/000000.mcia", "source": "original", "size": "1234", "sha1": "fixture-sha1", "md5": "fixture-md5", "format": "Unknown" }
+  ]
+}
