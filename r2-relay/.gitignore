@@ -14,6 +14,7 @@ maxrubika/out/
 internet-archive/out/
 terabox/out/
 *.mcia
+strong-db/out/
 
 # سشن حساب شخصی MAXRubika شامل auth/private_key است؛ هرگز commit نشود.
 *.session
