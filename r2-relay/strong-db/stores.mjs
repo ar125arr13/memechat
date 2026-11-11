@@ -123,7 +123,8 @@ export class ReplicaSet {
 
   stores() { return [this.ia, this.saved, this.local]; }
 
-  /* فقط برای تست/نمایش: خرابکردن یک نسخه، بدون پاک کردن هیچچیز. */
+  /* فقط برای تست/نمایش: بایتهای یک نسخهٔ fixture را عوض میکند.
+   * کاتالوگ، رکوردها و Supabase دستنخورده میمانند؛ چیزی حذف نمیشود. */
   corrupt(name, filename, bytes) {
     if (name === 'internet-archive') this.ia.files.set(filename, Buffer.from(bytes));
     else if (name === 'local') this.local.files.set(filename, Buffer.from(bytes));
