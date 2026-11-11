@@ -52,5 +52,19 @@ MAXRubika**. درخواست «فایلای بله رو پاک کن / بریم ی
 [`docs/TERABOX-OPEN-PLATFORM.md`](docs/TERABOX-OPEN-PLATFORM.md). **مقصد دوم
 همچنان Internet Archive است** و چیزی جابهجا نشد.
 
+**پیشبرد MAXRubika (`0.9.0`):** بنا به «اون مکس روبیکا رو پیش ببریم که فایلای
+دیتا بیس رو رمز گزاری بفرسته توی سیو مسیج»، ورودی دیگه بایت تصادفی نیست:
+**فایلهای دیتابیس** (همان جدولها/فیلدها/ردیفها) یکییکی AES-256-GCM میشوند →
+`MCPK1` → متنهای `MCR1` → یک outbox رمزشده در `maxrubika/out/` →
+`saved_messages.py send-outbox` → برگشت و رمزگشایی + تأیید SHA در
+[`r2-relay/maxrubika/`](r2-relay/maxrubika/README.md). متنی که روبیکا میبیند
+**فقط ciphertext** است؛ صفر حذف، بدون تغییر Supabase، و مقصد دوم IA سر جایش
+است. سند: [`docs/SECOND-DB-MAXRUBIKA.md`](docs/SECOND-DB-MAXRUBIKA.md) بخش ۹.
+
+**«شمارم بدم؟» → خیر.** چیزی که لازم است شماره نیست، **سشن محلی** است؛ لاگین
+اولیهٔ MAXRubika روی دستگاه صاحب پروژه انجام میشود و کانکتور فقط نام سشن را
+از `MC_MAXRUBIKA_SESSION` میخواند. این محیط به سرورهای روبیکا وصل نمیشود،
+پس شماره/کد تأیید هیچ قدمی جلو نمیبرد و وارد چت/سورس/لاگ نشد.
+
 تحقیق مقایسهای که منجر به انتخاب IA شد (همراه تصحیح بخش TeraBox):
 [`docs/STORAGE-CANDIDATES.md`](docs/STORAGE-CANDIDATES.md).

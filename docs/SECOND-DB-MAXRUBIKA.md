@@ -18,8 +18,9 @@ maxrubika و سیو مسیج روبیکا اوکیش کن».
 | بازگردانی به نسخهٔ قبلِ بله (`354e7f3`) | `r2-relay/client/storage-adapter.js`، `r2-relay/tests/run.mjs`، `r2-relay/rubika/{adapter,cli}.mjs`، `r2-relay/rubika/tests/run.mjs`، `r2-relay/package.json`، `r2-relay/README.md`، `README.md`، `docs/SECOND-DB-RUBIKA.md`، `r2-relay/.gitignore` |
 | اضافهٔ تازه | `r2-relay/maxrubika/*` (۴ فایل + ۲ تست)، `docs/SECOND-DB-MAXRUBIKA.md` |
 
-بعد از پاکسازی `grep -rni bale` روی کل مخزن **صفر نتیجه** داد. تستهای
-قدیمی دوباره سبز شدند: `13 + 7`.
+بعد از پاکسازی **هیچ فایل یا ماژول باقیماندهای از بله** در مخزن نماند؛
+فقط چند اشارهٔ تاریخی (همین جدول، `r2-relay/README.md` و یک عبارت تست)
+نامشان را آوردهاند. تستهای قدیمی دوباره سبز شدند: `13 + 7`.
 
 **هیچ دادهای پاک نشد:** اینها فایلهای سورساند، نه ردیفهای دیتابیس. هیچ
 `DELETE` / `DROP` / `TRUNCATE` / `RESET` اجرا نشد، Supabase زنده دستنخورده
@@ -82,13 +83,14 @@ username تلقی میشود). پس خواندن برگشت حتماً با **`a
 | فایل | کار |
 |---|---|
 | `r2-relay/maxrubika/adapter.mjs` | `SavedMessagesDriver`، کدگذاری `MCR1` (`_`→`%5F`)، گروهبندی بستهها بر اساس `id`، `publishForSavedMessages`، `verifySavedMessagesDelivery`، `roundTrip` با SHA-256 |
-| `r2-relay/maxrubika/saved_messages.py` | کانکتور واقعی پایتون: `Messenger` / `send_message(chat="me")` / `send_file` / `get_last_messages`، حالت آفلاین `FixtureMessenger`، فقط نام سشن از env |
-| `r2-relay/maxrubika/cli.mjs` | `status` / `trial --fixture` / `help` — تست کامل رمز → ارسال → برگشت → تأیید |
-| `r2-relay/maxrubika/tests/run.mjs` | ۸ تست Node آفلاین |
-| `r2-relay/maxrubika/tests/test_saved_messages.py` | ۹ تست Python آفلاین |
+| `r2-relay/maxrubika/saved_messages.py` | کانکتور واقعی پایتون: `Messenger` / `send_message(chat="me")` / `send_file` / `get_last_messages` + `send_outbox` / `roundtrip_outbox` / `receive_to_file`، حالت آفلاین `FixtureMessenger`، فقط نام سشن از env |
+| `r2-relay/maxrubika/database-files.mjs` | **تازه (۰.۹.۰):** فایلهای دیتابیس → `publishDatabaseFiles` → outbox رمزشده، و `verifyDatabaseFiles` با برگشت/رمزگشایی |
+| `r2-relay/maxrubika/cli.mjs` | `export` / `verify` / `status` / `trial --fixture` / `help` |
+| `r2-relay/maxrubika/tests/run.mjs` | ۱۶ تست Node آفلاین |
+| `r2-relay/maxrubika/tests/test_saved_messages.py` | ۱۴ تست Python آفلاین |
 | `docs/SECOND-DB-MAXRUBIKA.md` | همین سند |
 
-نمونهٔ اجرای آفلاینی که همین الان انجام شد:
+نمونهٔ اجرای آفلاینی که همین الان انجام شد (مسیر قدیمی `trial`):
 
 ```text
 مقصد: rubika-saved-messages | چت: me | حالت: fixture
@@ -96,6 +98,24 @@ username تلقی میشود). پس خواندن برگشت حتماً با **`a
 برگشت و تأیید SHA: true | بچهای تأییدشده: 4
 فایل رمزشده موبرهمو: true
 حذف/ریست: false | عملیات مخرب: 0
+```
+
+نمونهٔ اجرای آفلاینی مسیر **فایلهای دیتابیس** (۰.۹.۰):
+
+```text
+فایلهای دیتابیس آماده و رمزشده شدند | منبع: جدولهای ساختگی (آفلاین)
+تعداد فایلها: 2 | ردیفها: mimchat_staging_outbox.json=2, mimchat_staging_messages.json=2
+الگوریتم: AES-256-GCM | بستهها: 7 | پیشوند: MCR1.
+بررسی نشت plaintext در متنها: true
+وضعیت: sent-pending-verification | تأیید نهایی هنوز انجام نشده | حذف/ریست: false
+
+python roundtrip-outbox → {"ok":true,"sent":7,"received":7,"deleted":false}
+
+تأیید outbox | منبع پیامها: فایل برگشتی
+برگشت بستهها و SHA: true | پیامهای برگشتی: 7
+  mimchat_staging_outbox.json: ✅ ردیفها=2 | بایت=1029
+  mimchat_staging_messages.json: ✅ ردیفها=2 | بایت=1952
+نتیجهٔ کل: true | رمزگشایی: AES-256-GCM | حذف/ریست: false
 ```
 
 ---
@@ -120,9 +140,11 @@ python3 r2-relay/maxrubika/saved_messages.py receive 100
 ```bash
 node r2-relay/tests/run.mjs                                  # 13 tests passed
 node r2-relay/rubika/tests/run.mjs                            #  7 tests passed
-node r2-relay/maxrubika/tests/run.mjs                         #  8 tests passed
-python3 -m unittest discover -s r2-relay/maxrubika/tests -v   #  9 tests passed
-npm --prefix r2-relay run test:all                            # 28 تست JS سبز
+node r2-relay/maxrubika/tests/run.mjs                         # 16 tests passed
+node r2-relay/internet-archive/tests/run.mjs                  # 22 tests passed
+node r2-relay/terabox/tests/run.mjs                           # 19 tests passed
+python3 -m unittest discover -s r2-relay/maxrubika/tests -v   # 14 tests passed
+npm --prefix r2-relay run test:all                            # 77 تست JS سبز
 ```
 
 ---
@@ -130,7 +152,8 @@ npm --prefix r2-relay run test:all                            # 28 تست JS س�
 ## ۷. چی انجام **نشد** (ادعا نمیشود)
 
 - ❌ هیچ استقرار، ادغام PR، تغییر `index.html`/CSP/`MC_API`/Edge زنده.
-- ❌ هیچ لاگین واقعی، شماره، کد تأیید، سشن واقعی یا تماس به روبیکا.
+- ❌ هیچ لاگین واقعی، شماره، کد تأیید، OTP، سشن واقعی یا تماس به روبیکا
+  (حتی در نسخهٔ ۰.۹.۰؛ شماره خواسته نشد و وارد چت/سورس/لاگ نشد).
 - ❌ هیچ توکن بات، ورسل، API رسمی روبیکا، scraping یا بکاند عمومی.
 - ❌ هیچ حذف ردیف/بچ/پیام؛ `delete_messages` صدا زده نشد.
 - ❌ هیچ ادعای «روبیکا شد دیتابیس کوئریپذیر» یا «بله شد دیتابیس اصلی».
@@ -155,3 +178,70 @@ PR #1 همچنان **OPEN** و merged نشده.
 11. دستورالعمل رسمی «برای AI: هیچ متدی نساز» — <https://meh2rab.github.io/maxrubika/ai/>
 12. FNC Rubika (کتابخانهٔ مشابه، تأیید نیاز به سشن حساب شخصی) — <https://hamidrezabakhshi8118.github.io/>
 13. سند قبلی دیتابیس دوم — `docs/SECOND-DB-RUBIKA.md`
+
+---
+
+## ۹. پیشبرد «فایلهای دیتابیس رمزشده → سیو مسیج» (۰.۹.۰)
+
+**درخواست:** «خب اون مکس روبیکا رو پیش ببریم که فایلای دیتا بیس رو رمز گزاری
+بفرسته توی سیو مسیج / شمارم بدم؟»
+
+### ۹.۱ «شمارم بدم؟» — خیر، الان لازم نیست و فایدهای هم ندارد
+
+| پرسش | پاسخ |
+|---|---|
+| لاگین با شماره، «API» میدهد؟ | خیر. MAXRubika کتابخانهٔ غیررسمی/self-bot است؛ لاگین اولیه (شماره + کد تأیید + احتمالاً رمز دومرحلهای) **روی دستگاه خودتان** یک **فایل سشن محلی** میسازد. کانکتور فقط **نام** آن سشن را از `MC_MAXRUBIKA_SESSION` میخواند. |
+| من اینجا میتوانم لاگین کنم؟ | خیر. این محیط فقط به `github.com` / `registry.npmjs.org` / `pypi.org` و توابع Git دسترسی شبکهای دارد؛ **هیچ تماسی با سرورهای روبیکا ممکن نیست**. حتی با شماره هم ارسال واقعی انجام نمیشود. |
+| چرا کد تأیید را نگیریم؟ | کوتاهعمر و یک اعتبارنامهٔ زنده است؛ آمدنش تو چت یعنی ماندن یه راز تو لاگ، بدون اینکه هیچ قدمی جلو برود. شماره/OTP/private_key هرگز وارد چت، سورس، لاگ، فرانتاند یا مخزن نشد. |
+| پس چه چیزی لازم است؟ | برای **آمادهسازی و تأیید**: هیچچیز. برای **ارسال واقعی**: فقط همان سشن محلی روی دستگاه صاحب پروژه — نه شماره تو چت. |
+| ریسک؟ | self-bot روی حساب شخصی ممکن است خلاف شرایط سرویس روبیکا باشد؛ پروتکل خصوصی است و ممکن است بشکند. ادعای پایداری/تأیید رسمی نمیکنیم. |
+
+### ۹.۲ چی اضافه شد (بدون دست زدن به معماری قبلی)
+
+| مرحله | قبل | الان |
+|---|---|---|
+| ورودی | `randomBytes(4096)` | **فایلهای خروجی دیتابیس**: یک JSON بهازای هر جدول، با همان `TABLES` / فیلدها / ردیفهای `rubika/adapter.mjs` |
+| رمزگذاری | همان `publishEncrypted` | همان AES-256-GCM، ولی **بهازای هر فایل جداگانه** با `aad` جدا (`memechat-db-files-saved-messages:<outbox>:<file>`) |
+| خروجی | بستهها تو حافظه | **outbox ماندگار**: `saved-<id>.json` (منیفست + متنها) و `saved-<id>.txt` (`maxrubika/out/`، gitignored) |
+| ارسال | فقط fixture درون Node | `saved_messages.py send-outbox` / `roundtrip-outbox` همان متنهای `MCR1` را تحویل `send_message(chat="me")` میدهد |
+| برگشت | `verifySavedMessagesDelivery` | `verify --received` متنهای برگشتی را میگیرد، بستهها را join میکند، **رمزگشایی** میکند و SHA/بایت/تعداد ردیف هر فایل را مقایسه میکند |
+| صداقت وضعیت | `status: confirmed` بلافاصله | outbox صریحاً `sent-pending-verification` + `deliveryVerified:false` + `verificationRequired:true` است؛ منیفست داخلی هم همین پرچمها را گرفت |
+
+**قانون «هیچ دادهای حذف/ریست نشود» همچنان پابرجاست:** `delete()` همچنان خطا
+میدهد، `delete_messages(` صدا زده نمیشود، `destructiveOperations: []`،
+`retainedInPrimary: true`، و نسخهٔ محلی هر تکه هنگام `put` نگه داشته میشود
+(`stage/...` و `blob/<sha>`). تأیید خراب → فقط `verified:false`، بدون پاک کردن.
+
+### ۹.۳ اثبات اینکه روبیکا فقط ciphertext میبیند
+
+متن هر پیام دقیقاً `MCR1.MCPK1.<base64url>.<base64url>` است. آلفابت
+base64url فقط `A-Za-z0-9-_` است، بنابراین **هیچ** نویسهٔ JSON (`:`، `{`،
+`}`، `"`, فاصله) و هیچ رشتهٔ ردیف جدول (`mimchat_staging_messages`،
+`سلام`، `آرشیو`) داخل پیامها نیست. تست `assertCiphertextOnly` و تست نشت
+ردیفها این را بهصورت خودکار چک میکنند. outbox خودش فقط متادیتا + ciphertext
+دارد، plaintext ندارد.
+
+### ۹.۴ حلقهٔ کاملی که **بدون شماره/لاگین** اجرا و سبز شد
+
+```
+export --fixture       → 2 فایل، 7 بسته MCR1، بررسی نشت plaintext: true
+roundtrip-outbox       → {"ok":true,"sent":7,"received":7,"deleted":false}
+verify --received      → برگشت SHA: true | هر دو فایل ✅ | نتیجهٔ کل: true
+```
+
+همچنین تست شد: کم شدن یک بسته → `ok:false` ولی `deleted:false`؛ کلید اشتباه
+→ بستهها سالم برگشتند ولی رمزگشایی رد شد، باز هم صفر حذف.
+
+### ۹.۵ چی انجام **نشد** (همچنان ادعا نمیشود)
+
+- هیچ شماره، کد تأیید، OTP، لاگین، سشن واقعی، `auth`/`private_key` یا تماس
+  شبکهای به روبیکا.
+- هیچ SELECT/نوشتن/حذف روی Supabase زنده؛ جدولها ساختگیاند. لاگین، چت،
+  تاریخچه، ظاهر، `MC_API`، Edge و CSP دستنخورده.
+- هیچ جابهجایی مقصد دوم: Internet Archive (و `docs/READABLE-CODEBOOK.md` و
+  تحقیق TeraBox) سر جایند؛ `maxrubika` یک مسیر اضافه است.
+- هیچ استقرار، دیپلوی، مرج، ورسل، توکن بات یا API رسمی روبیکا.
+- هیچ ادعای «روبیکا شد دیتابیس کوئریپذیر»؛ همچنان فقط حامل ciphertext است،
+  مرجع منیفست محلی + Supabase است.
+
+PR #1 همچنان **OPEN** و merge نشده.

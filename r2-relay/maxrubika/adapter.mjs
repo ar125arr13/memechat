@@ -190,6 +190,10 @@ export async function publishForSavedMessages({
     // هر put با موفقیت به Saved Messages فرستاده شد؛ نسخهٔ محلی هم نگه داشته
     // شد تا readEncrypted همان را بخواند. صفر حذف.
     status: 'confirmed',
+    /* «confirmed» یعنی تحویل ترانسپورت + نگهداری نسخهٔ محلی؛ تأیید نهایی
+     * برگشت از Saved Messages جداگانه با verifySavedMessagesDelivery است. */
+    deliveryVerified: false,
+    verificationRequired: true,
     destination: MAXRUBIKA_DESTINATION,
     carrier: SAVED_MESSAGES_CHAT,
     officialApiUsed: false,

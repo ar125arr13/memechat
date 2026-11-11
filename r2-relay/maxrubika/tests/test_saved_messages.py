@@ -5,15 +5,17 @@
 اجرا: python3 -m unittest discover -s r2-relay/maxrubika/tests -v
 """
 
+import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from saved_messages import (  # noqa: E402
-    SavedMessagesTransport, FixtureMessenger, PREFIX,
+    SavedMessagesTransport, FixtureMessenger, PREFIX, OUTBOX_KIND,
     SAVED_MESSAGES_CHAT, DEFAULT_SESSION_ENV, _as_messages,
 )
 
@@ -88,6 +90,61 @@ class SavedMessagesTests(unittest.TestCase):
         self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", src)
         self.assertIn("send_message(chat=SAVED_MESSAGES_CHAT", src)
         self.assertIn("get_last_messages(", src)
+
+    def test_validate_outbox_accepts_only_ciphertext_texts(self):
+        good = {"kind": OUTBOX_KIND, "texts": [PREFIX + "MCPK1.aaa.bbb"]}
+        self.assertEqual(self.t.validate_outbox(good), good["texts"])
+        for bad in [
+            {"kind": "something-else", "texts": [PREFIX + "MCPK1.aaa.bbb"]},
+            {"kind": OUTBOX_KIND, "texts": []},
+            {"kind": OUTBOX_KIND, "texts": ["plaintext"]},
+            {"kind": OUTBOX_KIND, "texts": [PREFIX + "MCPK1.aaa.bbb", 123]},
+        ]:
+            with self.assertRaises(ValueError):
+                self.t.validate_outbox(bad)
+
+    def test_send_outbox_and_roundtrip_in_one_transport(self):
+        texts = [PREFIX + "MCPK1.aaa.bbb", PREFIX + "MCPK1.ccc.ddd"]
+        outbox = {"kind": OUTBOX_KIND, "texts": texts}
+        with tempfile.TemporaryDirectory() as d:
+            outbox_path = str(Path(d) / "outbox.json")
+            received_path = str(Path(d) / "received.json")
+            Path(outbox_path).write_text(json.dumps(outbox), "utf8")
+            report = self.t.roundtrip_outbox(outbox_path, received_path)
+            self.assertTrue(report["ok"])
+            self.assertEqual(report["sent"], 2)
+            self.assertEqual(report["received"], 2)
+            self.assertFalse(report["deleted"])
+            self.assertEqual(report["destructiveOperations"], [])
+            data = json.loads(Path(received_path).read_text("utf8"))
+            self.assertEqual(data["kind"], OUTBOX_KIND)
+            self.assertEqual([m["text"] for m in data["messages"]], texts)
+
+    def test_send_outbox_rejects_bad_file_without_sending(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = str(Path(d) / "bad.json")
+            Path(p).write_text(json.dumps({"kind": OUTBOX_KIND, "texts": ["oops"]}), "utf8")
+            with self.assertRaises(ValueError):
+                self.t.send_outbox_file(p)
+            self.assertEqual(self.t.fixture.sent_texts, [])
+
+    def test_receive_to_file_writes_offline_messages(self):
+        self.t.send([PREFIX + "MCPK1.aaa.bbb"])
+        with tempfile.TemporaryDirectory() as d:
+            p = str(Path(d) / "received.json")
+            report = self.t.receive_to_file(p, 10)
+            self.assertTrue(report["ok"])
+            self.assertEqual(report["written"], 1)
+            data = json.loads(Path(p).read_text("utf8"))
+            self.assertEqual(data["mode"], "fixture")
+            self.assertEqual(data["messages"][0]["text"], PREFIX + "MCPK1.aaa.bbb")
+
+    def test_no_phone_otp_prompt_in_connector_source(self):
+        src = Path(__file__).resolve().parents[1].joinpath("saved_messages.py").read_text("utf8")
+        self.assertNotIn("input(", src)
+        self.assertIn(DEFAULT_SESSION_ENV, src)
+        self.assertIn("send_outbox", src)
+        self.assertIn("roundtrip_outbox", src)
 
 
 if __name__ == "__main__":
