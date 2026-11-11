@@ -1,15 +1,12 @@
 #!/usr/bin/env node
-/* MemeChat — ابزار خطفرمان «دیتابیس دوم» (پیشفرض: کوریر دستی روبیکا، بدون API).
+/* MemeChat — ابزار خطفرمان «دیتابیس دوم → روبیکا» (بدون API رسمی، بدون ورسل).
  *
  * اجرا فقط تو یک ترمینال امن؛ هیچ رمزی تو چت/مرورگر/مخزن نمیرود.
- *   node cli.mjs export --fixture                    # تست آفلاین، بدون هیچ کلیدی
- *   node cli.mjs export --destination bale --fixture # برچسب مقصد بله (اختیاری)
- *   node cli.mjs export                              # خواندن فقطخواندنی از Supabase
+ *   node cli.mjs export --fixture          # تست آفلاین، بدون هیچ کلیدی
+ *   node cli.mjs export                    # خواندن فقطخواندنی از Supabase
  *   node cli.mjs verify --file packets.txt --manifest manifest.json
  *   node cli.mjs status
  *   node cli.mjs help
- *
- * مسیر اختیاری ارسال خودکار با API رسمی بله: ../bale/cli.mjs
  */
 
 import { webcrypto } from 'node:crypto';
@@ -26,7 +23,6 @@ const FIXTURE_KEY = 'fixture-test-key-not-a-real-secret';
 
 import {
   prepareBatch, verifyBatch, readPrimary, fixtureTables, TABLES,
-  DESTINATION, BALE_DESTINATION,
 } from './adapter.mjs';
 
 function arg(name, fallback = null) {
@@ -80,13 +76,7 @@ async function doExport() {
     tables = await readPrimary({ base, serviceKey });
     console.log('📖 فقط خوانده شد از دیتابیس اصلی؛ هیچ نوشتن/حذفی انجام نشد.');
   }
-  const destArg = arg('--destination');
-  const destination = destArg === 'bale' ? BALE_DESTINATION : (destArg || DESTINATION);
-  if (![DESTINATION, BALE_DESTINATION].includes(destination)) {
-    console.error('❌ مقصد نامعتبر. فقط پیشفرض (کوریر دستی) یا bale مجاز است.');
-    process.exit(2);
-  }
-  const { manifest, packets } = await prepareBatch({ tables, rawKey: key(), destination });
+  const { manifest, packets } = await prepareBatch({ tables, rawKey: key() });
   const packetsFile = path.join(OUT, `packets-${manifest.batchId}.txt`);
   const manifestFile = path.join(OUT, `manifest-${manifest.batchId}.json`);
   await fs.writeFile(packetsFile, packets.join('\n') + '\n', 'utf8');
@@ -98,22 +88,17 @@ async function doExport() {
     rowCounts: manifest.rowCounts,
     envelopeSha256: manifest.envelopeSha256,
     destination: manifest.destination,
-    officialApiUsed: manifest.officialApiUsed,
+    officialApiUsed: false,
     vercelUsed: false,
     deleted: false,
   });
   console.log(`✅ بچ ${manifest.batchId} آماده شد`);
   console.log(`   بستهها: ${packetsFile}`);
   console.log(`   منیفست: ${manifestFile}`);
-  console.log(`   ${manifest.packetCount} بستهٔ MCPK1 | مقصد: ${manifest.destination}`);
+  console.log(`   ${manifest.packetCount} بستهٔ MCPK1 | جدولها: ${manifest.tableNames.join(', ')}`);
   console.log('');
-  if (manifest.destination === BALE_DESTINATION) {
-    console.log('برای ارسال خودکار: node ../bale/cli.mjs send-packets --file <همینفایل> --manifest <همینمنیفست>');
-    console.log('توکن/چتآیدی فقط تو محیط امن سرور؛ هیچ رازی تو چت/کد/فرانتاند نیست.');
-  } else {
-    console.log('الان خطها رو کپی کن توی «پیامهای ذخیرهشدهٔ» روبیکای خودت.');
-    console.log('هیچ API، ربات، توکن، ورسل یا GitHubی در کار نیست؛ روبیکا فقط متن رمزشده میبیند.');
-  }
+  console.log('الان خطها رو کپی کن توی «پیامهای ذخیرهشدهٔ» روبیکای خودت.');
+  console.log('هیچ API، ربات، توکن، ورسل یا GitHubی در کار نیست؛ روبیکا فقط متن رمزشده میبیند.');
   console.log('دیتابیس اصلی دستنخورده ماند؛ صفر حذف.');
 }
 
@@ -147,7 +132,7 @@ async function doStatus() {
   let state;
   try { state = JSON.parse(await fs.readFile(STATE, 'utf8')); }
   catch { console.log('هنوز بچهای ساخته نشده. اول: node cli.mjs export --fixture'); return; }
-  console.log(`دیتابیس دوم: کوریر دستی روبیکا (پیشفرض) + مسیر اختیاری API رسمی بله | ورسل: خیر`);
+  console.log(`دیتابیس دوم: روبیکا (کوریر دستی) | ورسل: خیر | API رسمی: خیر`);
   console.log(`تعداد بچها: ${state.batches.length} | حذف: ${state.deleted} | عملیات مخرب: ${state.destructiveOperations.length}`);
   for (const b of state.batches) {
     console.log(`  • ${b.batchId} | ${b.packetCount} بسته | ${b.envelopeSha256.slice(0, 12)}… | ${b.createdAt}`);
@@ -158,22 +143,17 @@ function help() {
   console.log(`میمچت — دیتابیس دوم روی روبیکا، بدون API رسمی و بدون ورسل
 
 دستورها:
-  export --fixture                     بچ تستی آفلاین (هیچ کلید/سرویسی لازم نیست)
-  export --destination bale --fixture  همان بچها، ولی برچسب مقصد «بله» میخورد
-  export                               خواندن فقطخواندنی از Supabase اصلی + ساخت بستهها
-  verify --file F --manifest M         برگرداندن بستهها + تأیید SHA-256
-  verify                               آخرین packets-*.txt / manifest-*.json را میگیرد
-  status                               منیفست الحاقی محلی را نشان میدهد
-  help                                 همین متن
+  export --fixture                بچ تستی آفلاین (هیچ کلید/سرویسی لازم نیست)
+  export                          خواندن فقطخواندنی از Supabase اصلی + ساخت بستهها
+  verify --file F --manifest M    برگرداندن بستهها از روبیکا + تأیید SHA-256
+  verify                          آخرین packets-*.txt / manifest-*.json را میگیرد
+  status                          منیفست الحاقی محلی را نشان میدهد
+  help                            همین متن
 
 متغیرهای محیط (فقط ترمینال امن، نه مرورگر/چت/مخزن):
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, BACKUP_ENCRYPTION_KEY
 
-ارسال اختیاری با API رسمی بله (بدون ورسل):
-  node ../bale/cli.mjs send-packets --file F --manifest M
-  متغیرها: BALE_BOT_TOKEN, BALE_CHAT_ID  (فقط محیط امن سرور)
-
-قوانین ثابت: فقط SELECT؛ صفر PATCH/DELETE/RESET؛ بدون ورسل/GitHub API؛
+قوانین ثابت: فقط SELECT؛ صفر PATCH/DELETE/RESET؛ هیچ تماسی با روبیکا/GitHub/ورسل؛
 هیچ کلیدی تو فرانتاند؛ نام جدولها و فیلدها دستنخورده.`);
 }
 

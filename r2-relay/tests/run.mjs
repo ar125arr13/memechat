@@ -9,12 +9,10 @@ import {
 } from '../worker/src/crypto.js';
 import { makePackets, joinPackets, RUBIKA_MANUAL_COURIER } from '../client/courier.js';
 import {
-  MemoryDriver, ManualCourierDriver, RubikaCourierDriver, BaleDirectDriver,
-  publishEncrypted, publishForRubika, publishForBaleDirect, verifyAndCommit,
+  MemoryDriver, ManualCourierDriver, RubikaCourierDriver,
+  publishEncrypted, publishForRubika, verifyAndCommit,
   verifyRubikaDelivery, readEncrypted,
-  encodePacketForBale, decodePacketFromBale, BALE_DIRECT_DESTINATION,
 } from '../client/storage-adapter.js';
-import { BaleDirectClient, BALE_API_ORIGIN, REQUIRED_CSP_CONNECT_SRC } from '../client/bale-direct.js';
 
 let passed = 0;
 const test = async (name, fn) => {
@@ -159,101 +157,6 @@ await test('RubikaCourierDriver.confirm: هش پاکت تأیید میشود، �
   assert.equal(report.retainedInPrimary, true);
   assert.equal(report.officialApiUsed, false);
   assert.equal(report.vercelUsed, false);
-});
-
-/* ---------------- API بله مستقیم از سورس، بدون بکاند ---------------- */
-
-const BALE_FIXTURE_TOKEN = ['123456789', 'browserFixtureNotReal'].join(':');
-const BALE_FIXTURE_CHATS = ['9001', '9002'];
-const baleCalls = [];
-const baleFetch = async (url, opts) => {
-  baleCalls.push({ url, method: opts.method, body: opts.body });
-  return { ok: true, status: 200, json: async () => ({ ok: true, result: { message_id: 42 } }) };
-};
-
-await test('bale-direct: آدرس API تو سورس است و بسته رفتوبرگشت سالم میماند', () => {
-  assert.equal(BALE_API_ORIGIN, 'https://tapi.bale.ai');
-  assert.ok(REQUIRED_CSP_CONNECT_SRC.includes('tapi.bale.ai'));
-  const packet = 'MCPK1.abc_def.ghi_jkl';
-  const encoded = encodePacketForBale(packet, {});
-  assert.equal(encoded.includes('_'), false);
-  assert.ok(encoded.includes('%5F'));
-  assert.equal(decodePacketFromBale(encoded, {}), packet);
-  assert.equal(decodePacketFromBale('یک پیام معمولی', {}), null);
-  assert.throws(() => encodePacketForBale('سلام', {}), /NOT_MCPK1_PACKET/);
-});
-
-await test('BaleDirectClient: بستهها برای چند بازوی بیکار میروند، بدون بکاند/راز', async () => {
-  const packets = await makePackets(utf8('بستهٔ رمزشدهٔ تستی برای بازوهای بیکار'), { id: 'bd-1', chunkSize: 40 });
-  const client = new BaleDirectClient({
-    token: BALE_FIXTURE_TOKEN, chatIds: BALE_FIXTURE_CHATS,
-    fetchImpl: baleFetch, minIntervalMs: 0,
-  });
-  const report = await client.sendPackets({ packets });
-  assert.equal(report.destination, BALE_DIRECT_DESTINATION);
-  assert.equal(report.backend, false);
-  assert.equal(report.vercelUsed, false);
-  assert.equal(report.frontendSecretInSource, false);
-  assert.equal(report.idleBotCount, 2);
-  assert.equal(report.sentCount, packets.length * 2);
-  assert.equal(report.verifiedCount, report.sentCount);
-  assert.equal(report.deleted, false);
-  assert.equal(report.retainedInPrimary, true);
-  assert.deepEqual(report.destructiveOperations, []);
-  const blob = JSON.stringify(report);
-  assert.equal(blob.includes(BALE_FIXTURE_TOKEN), false);
-  assert.equal(blob.includes('9001'), false);
-  assert.equal(blob.includes('9002'), false);
-  assert.ok(baleCalls.every((c) => c.url.startsWith(BALE_API_ORIGIN)));
-});
-
-await test('publishForBaleDirect: فایل رمزشده ارسال و همان نسخه محلی خوانده میشود', async () => {
-  const driver = new BaleDirectDriver({
-    token: BALE_FIXTURE_TOKEN, chatIds: ['9001'],
-    fetchImpl: baleFetch, minIntervalMs: 0, chunkSize: 64,
-  });
-  const plain = randomBytes(300);
-  const manifest = await publishForBaleDirect({ driver, plain, key, batchId: 'bd-2', chunkSize: 64 });
-  assert.equal(manifest.destination, BALE_DIRECT_DESTINATION);
-  assert.equal(manifest.status, 'confirmed');
-  assert.equal(manifest.backend, false);
-  assert.equal(manifest.frontendSecrets, false);
-  assert.equal(manifest.tokenSuppliedAtRuntime, true);
-  assert.equal(manifest.deleted, false);
-  assert.deepEqual(manifest.destructiveOperations, []);
-  assert.deepEqual(await readEncrypted({ driver, manifest, key, prefix: 'blob' }), plain);
-  assert.ok(driver.lastDelivery && driver.lastDelivery.sentCount > 0);
-  await assert.rejects(() => driver.delete('x'), /BALE_NO_DELETE/);
-});
-
-await test('bale-direct: اگر CORS پاسخ ندهد، ارسال میشود ولی «تأیید نشده» علامت میخورد', async () => {
-  const flaky = async (_url, opts) => {
-    if (opts && opts.mode === 'no-cors') {
-      return { ok: false, status: 0, json: async () => ({}) };
-    }
-    throw new TypeError('Failed to fetch');
-  };
-  const client = new BaleDirectClient({
-    token: BALE_FIXTURE_TOKEN, chatIds: ['9001'],
-    fetchImpl: flaky, minIntervalMs: 0, allowOpaque: true,
-  });
-  const packets = await makePackets(utf8('cors'), { id: 'bd-3', chunkSize: 40 });
-  const report = await client.sendPackets({ packets });
-  assert.equal(report.sentCount, packets.length);
-  assert.equal(report.verifiedCount, 0);
-  assert.equal(report.unverifiedCount, packets.length);
-  assert.equal(report.opaqueFallbackUsed, true);
-  assert.equal(report.deleted, false);
-  assert.equal(report.retainedInPrimary, true);
-});
-
-await test('bale-direct: بدون توکن موقع اجرا، هیچ ارسالی انجام نمیشود', async () => {
-  const client = new BaleDirectClient({ token: '', chatIds: [], fetchImpl: baleFetch, minIntervalMs: 0 });
-  assert.equal(client.configured, false);
-  await assert.rejects(
-    () => client.sendPackets({ packets: ['MCPK1.a.b'] }),
-    /BALE_RUNTIME_CONFIG_MISSING/,
-  );
 });
 
 console.log(`\n${passed} tests passed.`);

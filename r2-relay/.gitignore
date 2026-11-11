@@ -10,4 +10,10 @@ node_modules/
 # خروجی ابزار دیتابیس دوم (بستههای رمزشده + منیفست الحاقی).
 # هرگز.commit نشود؛ فقط تو محیط امن میماند.
 rubika/out/
-bale/out/
+maxrubika/out/
+
+# سشن حساب شخصی MAXRubika شامل auth/private_key است؛ هرگز commit نشود.
+*.session
+rubsession*
+__pycache__/
+*.pyc

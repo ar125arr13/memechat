@@ -17,7 +17,7 @@ const importLocal = (p) => import(pathToFileURL(p).href);
 const {
   prepareBatch, verifyBatch, encryptEnvelope, decryptEnvelope,
   readPrimary, fixtureTables, TABLES, FORBIDDEN_MARKERS,
-  SECOND_DB_KIND, DESTINATION, BALE_DESTINATION,
+  SECOND_DB_KIND, DESTINATION,
 } = await importLocal(path.join(ROOT, 'adapter.mjs'));
 const { makePackets, joinPackets } = await importLocal(path.join(ROOT, '..', 'client', 'courier.js'));
 
@@ -109,22 +109,6 @@ await test('verifyBatch: بستهٔ گمشده رد میشود ولی هیچ د�
     () => verifyBatch({ manifest, packets: packets.slice(1), rawKey: KEY }),
     (e) => e.retainedInPrimary === true && e.deleted === false,
   );
-});
-
-await test('مقصد اختیاری bale هم ساخته و تأیید میشود، بدون حذف/ورسل', async () => {
-  const { manifest, packets } = await prepareBatch({
-    tables: fixtureTables(), rawKey: KEY, batchId: 'batch-bale-1',
-    chunkSize: 250, destination: BALE_DESTINATION,
-  });
-  assert.equal(manifest.destination, BALE_DESTINATION);
-  assert.equal(manifest.officialApiUsed, true);
-  assert.equal(manifest.vercelUsed, false);
-  const report = await verifyBatch({ manifest, packets, rawKey: KEY });
-  assert.equal(report.ok, true);
-  assert.equal(report.destination, BALE_DESTINATION);
-  assert.equal(report.officialApiUsed, true);
-  assert.equal(report.deleted, false);
-  assert.equal(report.retainedInPrimary, true);
 });
 
 await test('هیچ DELETE/PATCH/TRUNCATE/DROP واقعی تو ماژول جدید نیست', async () => {
