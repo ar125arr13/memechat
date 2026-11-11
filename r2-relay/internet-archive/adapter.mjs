@@ -17,6 +17,9 @@
 
 import { encryptEnvelope, decryptEnvelope, sha256Hex, ENVELOPE_KIND } from './cipher.mjs';
 import { sourceKeyBytes, KEY_ALGORITHM, KEY_SOURCE, keyFingerprint } from './key.mjs';
+import {
+  encodeReadable, decodeReadable, describeCodebook, readableStats, CODEBOOK_MAGIC,
+} from './codebook.mjs';
 import { chunkBytes, concatBytes } from '../worker/src/crypto.js';
 import { StorageDriver } from '../client/storage-adapter.js';
 
@@ -25,15 +28,19 @@ export const FILE_PREFIX = 'mcia/';
 export const DEFAULT_CHUNK_BYTES = 8 * 1024 * 1024;   // 8 MiB؛ خیلی کمتر از سقف 500GB تکفایل
 export const DEFAULT_BATCH_LIMIT = 10000;             // سقف توصیهشدهٔ تعداد فایلها در هر item
 
-export function filenameFor({ batchId, index, item }) {
+export function filenameFor({ batchId, index, item, readable = false }) {
   const safe = String(batchId).replace(/[^A-Za-z0-9_.-]/g, '-');
-  return `${FILE_PREFIX}${item}/${safe}/${String(index).padStart(6, '0')}.mcia`;
+  const ext = readable ? 'mcrd' : 'mcia';
+  return `${FILE_PREFIX}${item}/${safe}/${String(index).padStart(6, '0')}.${ext}`;
 }
 
 /* ترانسپورت تزریقشده: { put(filename, bytes), get(filename), list(prefix) }.
    نمونهٔ واقعی Ias3Transport؛ نمونهٔ آفلاین fixture.mjs. */
 export class InternetArchiveDriver extends StorageDriver {
-  constructor({ transport, item = 'memechat-second-db', chunkSize = DEFAULT_CHUNK_BYTES } = {}) {
+  constructor({
+    transport, item = 'memechat-second-db', chunkSize = DEFAULT_CHUNK_BYTES,
+    readable = false,
+  } = {}) {
     super(IA_DESTINATION);
     if (!transport || typeof transport.put !== 'function' || typeof transport.list !== 'function') {
       throw new Error('IA_TRANSPORT_REQUIRED');
@@ -41,6 +48,7 @@ export class InternetArchiveDriver extends StorageDriver {
     this.transport = transport;
     this.item = item;
     this.chunkSize = chunkSize;
+    this.readable = !!readable;  // لایهٔ کدبوک واژگان، روی همان بستهٔ MCIA1
     this.store = new Map();       // نسخهٔ محلی (primary side) دستنخورده میماند
     this.sent = new Map();        // filename → meta
     this.confirmed = new Map();
@@ -53,21 +61,41 @@ export class InternetArchiveDriver extends StorageDriver {
     const match = /^stage\/([^/]+)\/(\d+)$/.exec(k);
     const batchId = match ? match[1] : String(k).replace(/[^A-Za-z0-9_.-]/g, '-');
     const index = match ? Number(match[2]) : 0;
-    const filename = filenameFor({ batchId, index, item: this.item });
+    const filename = filenameFor({
+      batchId, index, item: this.item, readable: this.readable,
+    });
 
     const { blob, meta } = encryptEnvelope(bytes, {
       item: this.item, filename, batchId, key: sourceKeyBytes(),
     });
     this.store.set(k, bytes);
     this.store.set(`blob/${sha}`, bytes);
-    const report = await this.transport.put(filename, blob);
-    this.sent.set(filename, { ...meta, plaintextSha256: sha, stageKey: k, index, report });
-    this.lastUploads.push({ filename, size: blob.length, sha });
+
+    /* لایهٔ قابلخواندن: بستهٔ باینری MCIA1 دستنخورده میماند، فقط بایتهایش
+       به واژه تبدیل میشوند. هیچیک از tag/AAD/SHA حذف یا دور زده نمیشود. */
+    let payload = blob;
+    let readableText = null;
+    let expansion = null;
+    if (this.readable) {
+      readableText = encodeReadable(blob);
+      payload = new Uint8Array(Buffer.from(readableText, 'utf8'));
+      expansion = readableStats(blob, readableText);
+    }
+
+    const report = await this.transport.put(filename, payload);
+    this.sent.set(filename, {
+      ...meta, plaintextSha256: sha, stageKey: k, index, report,
+      readable: this.readable, expansion,
+    });
+    this.lastUploads.push({ filename, size: payload.length, sha });
     return {
       key: k,
       filename,
       sha,
-      bytes: blob.length,
+      bytes: payload.length,
+      binaryBytes: blob.length,
+      readable: this.readable,
+      expansion,
       algorithm: KEY_ALGORITHM,
       keySource: KEY_SOURCE,
       reported: report ?? null,
@@ -96,7 +124,15 @@ export class InternetArchiveDriver extends StorageDriver {
     for (const f of chosen) {
       try {
         const got = await this.transport.get(f.name);
-        const opened = decryptEnvelope(got.bytes, { key: sourceKeyBytes() });
+        let binary = Buffer.from(got.bytes);
+        /* اگر فایل قابلخواندن است، اول واژهها → باینری، سپس همان تأیید
+           Poly1305/AAD/SHA روی بستهٔ MCIA1 انجام میشود. */
+        if (this.readable) {
+          const asText = binary.toString('utf8');
+          if (!asText.startsWith(CODEBOOK_MAGIC)) throw new Error('IA_READABLE_BAD_HEADER');
+          binary = Buffer.from(decodeReadable(asText));
+        }
+        const opened = decryptEnvelope(binary, { key: sourceKeyBytes() });
         const expected = this.sent.get(f.name);
         if (expected && opened.plaintextSha256 !== expected.plaintextSha256) {
           throw new Error('IA_HASH_MISMATCH');
@@ -109,6 +145,7 @@ export class InternetArchiveDriver extends StorageDriver {
           aad: opened.aad,
           algorithm: opened.algorithm,
           keySource: opened.keySource,
+          readable: this.readable,
           reportedSize: f.size,
         });
       } catch (err) {
@@ -176,6 +213,9 @@ export async function publishForInternetArchive({
       filename: report.filename,
       sha: report.sha,
       bytes: report.bytes,
+      binaryBytes: report.binaryBytes,
+      readable: report.readable,
+      expansion: report.expansion,
       algorithm: report.algorithm,
     });
   }
@@ -190,6 +230,8 @@ export async function publishForInternetArchive({
     cipher: KEY_ALGORITHM,
     keySource: KEY_SOURCE,
     keyFingerprint: keyFingerprint(),
+    readable: driver.readable,
+    codebook: driver.readable ? describeCodebook() : null,
     sha: wholeSha,
     size: bytes.length,
     chunkSize: size,

@@ -9,14 +9,16 @@
 |---|---|
 | `key.mjs` | **کلید ۳۲ بایتی ثابت داخل سورس** (نه env، نه passphrase) + هشدار امنیتی |
 | `cipher.mjs` | ChaCha20-Poly1305، بستهٔ باینری `MCIA1`، AAD، SHA-256 |
+| `codebook.mjs` | **readable**: ۲۵۶ واژهٔ فارسی + جایگشت Sattolo (هر کلمه → کلمهٔ دیگر، بدون نقطهٔ ثابت) |
 | `ias3.mjs` | کلاینت رسمی IAS3: `PUT`/`GET`/metadata/check_limit، هدرها، redaction، ممنوعیت DELETE |
 | `adapter.mjs` | `InternetArchiveDriver` + `publishForInternetArchive` + `verify...` + `read...` |
 | `fixture.mjs` | شبیهساز آفلاین با شکل واقعی metadata |
 | `cli.mjs` | `status` / `trial --fixture` / `help` |
-| `tests/run.mjs` | ۱۶ تست آفلاین |
+| `tests/run.mjs` | ۲۲ تست آفلاین |
 | `tests/fixtures/metadata-stats.json` | نمونهٔ پاسخ واقعی `GET /metadata/stats` |
 
-سند کامل: `../../docs/SECOND-DB-INTERNET-ARCHIVE.md`.
+سند کامل: `../../docs/SECOND-DB-INTERNET-ARCHIVE.md` و
+`../../docs/READABLE-CODEBOOK.md`.
 
 ## ⚠️ صداقت
 
@@ -30,8 +32,16 @@
 ```bash
 node internet-archive/cli.mjs status
 node internet-archive/cli.mjs trial --fixture
+node internet-archive/cli.mjs trial --fixture --readable
+node internet-archive/cli.mjs words
 node internet-archive/tests/run.mjs
 ```
+
+**نظر صادقانه دربارهٔ readable:** کدبوک، خروجی را **قابلخواندن** میکند
+(حروف فارسی، `آب → گچ`) ولی **امن** نمیکند و **معنیدار** هم نمیکند —
+زیرش همچنان ciphertext است. این یک substitution cipher است، جایگزین
+ChaCha20-Poly1305 نشد و تمامیت/AAD/Poly1305 پابرجا ماند. حجم حدود **۹ برابر**
+میشود. پیشفرض همان باینری است؛ `--readable` اختیاری است.
 
 واقعی (فقط موقع اجرا، هیچ رازی تو سورس/لاگ/چت نیست):
 

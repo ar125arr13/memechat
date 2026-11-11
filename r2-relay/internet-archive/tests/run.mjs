@@ -29,6 +29,11 @@ import {
   verifyInternetArchiveDelivery, readInternetArchive,
   filenameFor, IA_DESTINATION,
 } from '../adapter.mjs';
+import {
+  WORDLIST, WORD_COUNT, CODEBOOK_MAGIC, CODEBOOK_KIND,
+  buildSubstitutionKey, encodeReadable, decodeReadable,
+  describeCodebook, readableStats, sampleSubstitution,
+} from '../codebook.mjs';
 import { FixtureIas3 } from '../fixture.mjs';
 
 let passed = 0;
@@ -265,10 +270,129 @@ await test('بستهٔ دستکاریشده رد میشود، ولی هیچی پ
   assert.equal(transport.files.size, manifest.chunks.length);
 });
 
+await test('کدبوک: ۲۵۶ واژهٔ یکتای فارسی، داخل سورس، بدون env', () => {
+  assert.equal(WORDLIST.length, WORD_COUNT);
+  assert.equal(new Set(WORDLIST).size, WORD_COUNT);
+  assert.equal(WORDLIST.every((w) => w.length > 0 && !/\s/.test(w)), true);
+  assert.equal(CODEBOOK_MAGIC, 'MCRD1');
+  const cb = describeCodebook();
+  assert.equal(cb.kind, CODEBOOK_KIND);
+  assert.equal(cb.keySource, 'source-code');
+  assert.equal(cb.confidentiality, false);
+  assert.equal(cb.readable, true);
+  assert.match(cb.integrityPreservedBy, /ChaCha20-Poly1305/);
+  const src = fs.readFileSync(path.join(ROOT, 'codebook.mjs'), 'utf8');
+  assert.equal(src.includes('process.env'), false);
+  assert.equal(src.includes('AES-256-GCM'), false);
+});
+
+await test('جایگشت: یکبهیک، برگشتپذیر، وابسته به کلید سورس', () => {
+  const a = buildSubstitutionKey();
+  assert.equal(a.perm.length, 256);
+  assert.equal(new Set(a.perm).size, 256);
+  for (let i = 0; i < 256; i++) assert.equal(a.inverse[a.perm[i]], i);
+  const b = buildSubstitutionKey('00'.repeat(32));
+  assert.notDeepEqual([...a.perm], [...b.perm]);
+  const c = buildSubstitutionKey();
+  assert.deepEqual([...a.perm], [...c.perm]);   // قطعی
+  assert.equal(sampleSubstitution(5).length, 5);
+  assert.ok(sampleSubstitution(5).every((x) => x.from && x.to));
+  // «کلمهٔ دیگر» یعنی هیچ کلمهای به خودش تبدیل نشود (Sattolo / derangement).
+  assert.equal([...a.perm].every((v, i) => v !== i), true);
+  assert.equal(sampleSubstitution(256).every((x) => x.from !== x.to), true);
+});
+
+await test('کدبوک: باینری → واژههای فارسی → باینری، موبرهمو', () => {
+  const bytes = Buffer.from('سلام میمچت — readable 1404');
+  const text = encodeReadable(bytes);
+  assert.ok(text.startsWith(`${CODEBOOK_MAGIC}.${bytes.length}.`));
+  assert.match(text, /[\u0600-\u06FF]/);            // حروف فارسی دارند
+  assert.equal(text.includes('\x00'), false);
+  const back = decodeReadable(text);
+  assert.deepEqual(Buffer.from(back), bytes);
+  const s = readableStats(bytes, text);
+  assert.ok(s.expansionFactor > 1);
+  assert.equal(s.binaryBytes, bytes.length);
+});
+
+await test('کدبوک: دستکاری واژه / شمارش / هش رد میشود', () => {
+  const bytes = Buffer.from('integrity');
+  const text = encodeReadable(bytes);
+  const lines = text.trim().split('\n');
+  const words = lines[1].split(' ');
+  words[0] = 'واژهایکهنیست';
+  assert.throws(() => decodeReadable([lines[0], words.join(' '), ...lines.slice(2)].join('\n')),
+    /IA_READABLE_UNKNOWN_WORD|IA_READABLE_HASH_MISMATCH|IA_READABLE_COUNT_MISMATCH/);
+  const swapped = lines.slice();
+  const w2 = swapped[1].split(' ');
+  [w2[0], w2[1]] = [w2[1], w2[0]];
+  swapped[1] = w2.join(' ');
+  assert.throws(() => decodeReadable(swapped.join('\n')), /IA_READABLE_HASH_MISMATCH/);
+  assert.throws(() => decodeReadable('MCRD1.99.deadbeef\nآب'), /IA_READABLE_COUNT_MISMATCH/);
+  assert.throws(() => decodeReadable('بدون سرآیند'), /IA_READABLE_BAD_HEADER|IA_READABLE_NO_HEADER/);
+});
+
+await test('ادغام: publish --readable → تأیید Poly1305/SHA → خواندن موبرهمو', async () => {
+  const transport = new FixtureIas3({ item: ITEM });
+  const driver = new InternetArchiveDriver({
+    transport, item: ITEM, chunkSize: 1024, readable: true,
+  });
+  const plain = new Uint8Array(4000);
+  for (let i = 0; i < plain.length; i++) plain[i] = (i * 7) % 251;
+  const manifest = await publishForInternetArchive({ driver, plain, batchId: 'readable-1' });
+  assert.equal(manifest.readable, true);
+  assert.equal(manifest.cipher, 'ChaCha20-Poly1305');   // لایهٔ زیرین حذف نشد
+  assert.equal(manifest.codebook.wordCount, 256);
+  assert.equal(manifest.codebook.confidentiality, false);
+  assert.ok(manifest.chunks.length > 1);
+  assert.ok(manifest.chunks[0].filename.endsWith('.mcrd'));
+  assert.ok(manifest.chunks[0].expansion.expansionFactor > 1);
+  assert.ok(manifest.chunks[0].binaryBytes > 0);
+
+  // فایل ذخیرهشده واقعاً متن فارسی قابلخواندن است
+  const stored = transport.files.get(manifest.chunks[0].filename).toString('utf8');
+  assert.ok(stored.startsWith('MCRD1.'));
+  assert.match(stored, /[\u0600-\u06FF]/);
+  assert.equal(stored.includes('\x00'), false);
+
+  const delivery = await verifyInternetArchiveDelivery({ driver, manifest });
+  assert.equal(delivery.ok, true);
+  assert.equal(delivery.restoredSha256, manifest.sha);
+  const back = await readInternetArchive({ driver, manifest });
+  assert.deepEqual(back, plain);
+  assert.equal(delivery.deleted, false);
+  assert.deepEqual(delivery.destructiveOperations, []);
+  assert.equal(transport.calls.some((c) => c.method === 'DELETE'), false);
+});
+
+await test('ادغام: دستکاری یک واژه در حالت readable، برگشت را رد میکند ولی پاک نمیکند', async () => {
+  const transport = new FixtureIas3({ item: ITEM });
+  const driver = new InternetArchiveDriver({
+    transport, item: ITEM, chunkSize: 128, readable: true,
+  });
+  const manifest = await publishForInternetArchive({
+    driver, plain: new Uint8Array(400), batchId: 'readable-bad',
+  });
+  const f = manifest.chunks[0].filename;
+  const text = transport.files.get(f).toString('utf8');
+  const lines = text.trim().split('\n');
+  const words = lines[1].split(' ');
+  [words[0], words[1]] = [words[1], words[0]];
+  lines[1] = words.join(' ');
+  transport.files.set(f, Buffer.from(lines.join('\n'), 'utf8'));
+  const trip = await driver.roundTrip();
+  assert.equal(trip.ok, false);
+  assert.equal(trip.deleted, false);
+  assert.ok(trip.errors.length > 0);
+  assert.equal(transport.files.size, manifest.chunks.length);   // صفر حذف
+});
+
 await test('اسکن سورس: ورسل/بله/توکن/DELETE/CJK ممنوع؛ کلید حتماً داخل سورس هست', () => {
-  const files = ['key.mjs', 'cipher.mjs', 'ias3.mjs', 'adapter.mjs', 'fixture.mjs', 'cli.mjs']
-    .map((f) => path.join(ROOT, f)).filter((f) => fs.existsSync(f));
-  assert.equal(files.length, 6);
+  const files = [
+    'key.mjs', 'cipher.mjs', 'ias3.mjs', 'adapter.mjs', 'fixture.mjs',
+    'cli.mjs', 'codebook.mjs',
+  ].map((f) => path.join(ROOT, f)).filter((f) => fs.existsSync(f));
+  assert.equal(files.length, 7);
   const cjk = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
   for (const f of files) {
     const t = fs.readFileSync(f, 'utf8');

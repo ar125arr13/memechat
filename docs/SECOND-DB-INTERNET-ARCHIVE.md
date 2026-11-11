@@ -7,7 +7,14 @@
 (ChaCha20-Poly1305 بهجای AES-256-GCM)، و **کلید فقط داخل سورس** است
 (`r2-relay/internet-archive/key.mjs`) — نه env، نه passphrase، نه runtime،
 نه چت، نه از کسی پرسیده شد. API مورد استفاده **رسمی خود Internet Archive**
-(IAS3) است؛ متد خیالی نساختیم. ۱۶ تست آفلاین سبز است.
+(IAS3) است؛ متد خیالی نساختیم.
+
+**بعداً اضافه شد:** درخواست «کلمات رو تبدیل کنن به یه کلمهٔ دیگه، اینجوری
+میشه readable» → لایهٔ **کدبوک واژگان** (`codebook.mjs`: ۲۵۶ واژهٔ فارسی +
+جایگشت Sattolo بدون نقطهٔ ثابت) **روی** همان بستهٔ باینری نشست، نه بهجای
+آن. خروجی قابلخواندن است، ولی امن نیست و حجم را ~۹ برابر میکند. سند جداگانه:
+[`docs/READABLE-CODEBOOK.md`](READABLE-CODEBOOK.md). پیشفرض باینری تغییر
+نکرد. اکنون **۲۲ تست** آفلاین در این مسیر سبز است.
 
 ---
 
@@ -156,11 +163,12 @@ Archive هم طبق سند رسمی IAS3 «**World readable**» هستند:
 |---|---|
 | `r2-relay/internet-archive/key.mjs` | **کلید ثابت داخل سورس** + هشدار public + اثرانگشت امن |
 | `r2-relay/internet-archive/cipher.mjs` | ChaCha20-Poly1305، بستهٔ `MCIA1`، AAD، inspect/decrypt، SHA-256 |
+| `r2-relay/internet-archive/codebook.mjs` | **۲۵۶ واژهٔ فارسی + جایگشت Sattolo** بدون نقطهٔ ثابت، encode/decode متن قابلخواندن، آمار حجم |
 | `r2-relay/internet-archive/ias3.mjs` | کلاینت رسمی: URLها، هدرها، redaction، `Ias3Transport`، `parseMetadataFiles`، ممنوعیت DELETE |
 | `r2-relay/internet-archive/adapter.mjs` | `InternetArchiveDriver`، `publishForInternetArchive`، `verify...`، `readInternetArchive` |
 | `r2-relay/internet-archive/fixture.mjs` | شبیهساز آفلاین با همان شکل metadata واقعی |
 | `r2-relay/internet-archive/cli.mjs` | `status` / `trial --fixture` / `help` |
-| `r2-relay/internet-archive/tests/run.mjs` | ۱۶ تست آفلاین |
+| `r2-relay/internet-archive/tests/run.mjs` | ۲۲ تست آفلاین |
 | `r2-relay/internet-archive/tests/fixtures/metadata-stats.json` | نمونهٔ پاسخ واقعی `/metadata/stats` |
 | `r2-relay/internet-archive/README.md` | خلاصهٔ مسیر |
 | `docs/SECOND-DB-INTERNET-ARCHIVE.md` | همین سند |
@@ -173,6 +181,14 @@ Archive هم طبق سند رسمی IAS3 «**World readable**» هستند:
 تکهها: 3 | بستهها: 3 | تأیید SHA: true
 فایل برگشتی موبرهمو: true
 حذف/ریست: false | عملیات مخرب: 0
+```
+
+و حالت قابلخواندن (همان داده، تبدیلشده به واژه):
+
+```text
+تکهها: 3 | بستهها: 3 | تأیید SHA: true | فایل برگشتی موبرهمو: true
+حجم باینری: ۳٬۱۴۶٬۱۳۳ بایت | حجم متن: ۲۸٬۱۳۷٬۰۵۰ بایت | ضریب: ۸.۹۴×
+نمونهٔ تبدیل: آب ← گچ  |  باد ← ماه  |  خاک ← دفتر
 ```
 
 ---

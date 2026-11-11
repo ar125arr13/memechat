@@ -14,6 +14,14 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 > نه محرمانگی. کلید حساب IAS3 داخل سورس نیست و بدون آن آپلودی انجام نشد.
 > ۱۶ تست آفلاین سبز؛ صفر حذف؛ Supabase بدون تغییر؛ بدون ورسل/دیپلوی.
 >
+> **اضافهٔ تازه (`0.7.0`):** «کلمات رو تبدیل کنن به یه کلمهٔ دیگه، اینجوری
+> میشه readable» → [`codebook.mjs`](internet-archive/codebook.mjs): ۲۵۶
+> واژهٔ فارسی + جایگشت **Sattolo** (هیچ کلمهای به خودش تبدیل نمیشود)،
+> **روی** همان بستهٔ MCIA1، نه بهجای آن. سند:
+> [`../docs/READABLE-CODEBOOK.md`](../docs/READABLE-CODEBOOK.md).
+> ⚠️ قابلخواندن بله، امن خیر، معنیدار خیر، حجم ~۹ برابر. پیشفرض باینری
+> تغییر نکرد؛ `--readable` اختیاری است. ۲۲ تست سبز.
+>
 > **تغییر قبل از آن:** صاحب پروژه گفت «فایلای بله رو پاک کن / بریم یه
 > پیامرسان دیگه / مثلا با maxrubika و سیو مسیج روبیکا اوکیش کن».
 > تمام فایلهای بله (`bale/`، `client/bale-direct.js`، `primary/` و دو سندش)
@@ -92,10 +100,12 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 
 ```bash
 cd /home/user/memechat/r2-relay
-npm run test:all                 # 13 + 7 + 8 + 16 = 44 تست JS سبز
+npm run test:all                 # 13 + 7 + 8 + 22 = 50 تست JS سبز
 npm run test:maxrubika:py        # 9 تست Python سبز
 npm run internet-archive:status
 npm run internet-archive:trial
+npm run internet-archive:readable
+npm run internet-archive:words
 
 # تست کاملاً آفلاین، بدون رمز و بدون سرویس
 npm run rubika:export:fixture
