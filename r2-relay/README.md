@@ -107,6 +107,11 @@ npm run internet-archive:trial
 npm run internet-archive:readable
 npm run internet-archive:words
 
+# تحقیق API رسمی TeraBox — کاملاً آفلاین، بدون حساب و بدون کلید اپ
+npm run terabox:status
+npm run terabox:trial
+npm run terabox:accounts
+
 # تست کاملاً آفلاین، بدون رمز و بدون سرویس
 npm run rubika:export:fixture
 node rubika/cli.mjs verify --fixture
@@ -152,3 +157,16 @@ node rubika/cli.mjs verify --file برگشتی.txt --manifest rubika/out/manifes
 - هیچ ادعای «روبیکا شد دیتابیس کوئریپذیر»؛ نشد و بدون API رسمی نمیشود.
 
 سند تصمیم، محدودیتها و فهرست کامل فایلها: `../docs/SECOND-DB-RUBIKA.md`.
+
+### TeraBox Open Platform — فقط تحقیق، مقصد دوم عوض نشد
+
+[`terabox/`](terabox/README.md) یک کلاینت **آفلاین** برای
+[سند رسمی Open Platform](https://www.terabox.com/integrations/docs) است.
+نتیجهٔ صادقانه: API رسمی وجود دارد ولی **self-serve نیست**؛ کلید اپ فقط
+بعد از تأیید TeraBox صادر میشود و دو اکانت لاگین → دو جفت توکن مستقل میدهد،
+نه دو API کی. کلاینت بدون `MC_TERABOX_CLIENT_ID` /
+`MC_TERABOX_CLIENT_SECRET` / `MC_TERABOX_PRIVATE_SECRET` حتی یک تماس شبکهای
+هم نمیزند. `opera=delete` / `rtype=3` / `DELETE` مسدوداند، سهمیهها جمع
+نمیشوند (شرایط استفادهٔ TeraBox صریحاً ممنوع کرده)، و هیچ لاگین، توکن،
+کوکی `ndus`، آپلود یا تغییر معماریـای انجام نشد. جزئیات:
+`../docs/TERABOX-OPEN-PLATFORM.md`.

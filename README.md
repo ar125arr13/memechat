@@ -38,5 +38,19 @@ MAXRubika**. درخواست «فایلای بله رو پاک کن / بریم ی
 [`docs/READABLE-CODEBOOK.md`](docs/READABLE-CODEBOOK.md). قابلخواندن بله،
 امن خیر، معنیدار خیر، حجم ~۹ برابر؛ پیشفرض باینری تغییر نکرد. ۲۲ تست سبز.
 
-تحقیق مقایسهای که منجر به این انتخاب شد:
+**تحقیق تکمیلی: API رسمی TeraBox (`0.8.0`).** بنا به پرسش «میشه api تراباکس
+رو پیدا کنی که با دوتا اکانت لاگین کنم بعد api شون رو بگیرم»،
+[سند رسمی Open Platform](https://www.terabox.com/integrations/docs) پیدا و
+بررسی شد: **API رسمی وجود دارد، ولی self-service نیست** — `client_id` /
+`client_secret` / `private_secret` فقط بعد از تأیید شرکتی TeraBox صادر
+میشوند، و لاگین هر حساب فقط یک `access_token` + `refresh_token` میدهد،
+نه «API کی». دو GET خواندنی با مقدار نامعتبر، زندهبودن endpointها را تأیید
+کرد (`100001 unknown client` / `200002 invalid access_token`). کلاینت آفلاین
+[`r2-relay/terabox/`](r2-relay/terabox/README.md) دو حساب مستقل، refresh
+یکبارمصرف و آپلود سهمرحلهای را تست میکند؛ بدون لاگین/توکن/کلید واقعی، بدون
+جمع کردن سهمیه (ToS ممنوعش کرده)، بدون حذف. سند کامل:
+[`docs/TERABOX-OPEN-PLATFORM.md`](docs/TERABOX-OPEN-PLATFORM.md). **مقصد دوم
+همچنان Internet Archive است** و چیزی جابهجا نشد.
+
+تحقیق مقایسهای که منجر به انتخاب IA شد (همراه تصحیح بخش TeraBox):
 [`docs/STORAGE-CANDIDATES.md`](docs/STORAGE-CANDIDATES.md).

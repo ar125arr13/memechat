@@ -12,6 +12,7 @@ node_modules/
 rubika/out/
 maxrubika/out/
 internet-archive/out/
+terabox/out/
 *.mcia
 
 # سشن حساب شخصی MAXRubika شامل auth/private_key است؛ هرگز commit نشود.

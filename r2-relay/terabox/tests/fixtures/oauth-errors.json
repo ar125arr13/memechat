@@ -1,0 +1,28 @@
+{
+  "_note": "پاسخهای واقعی و زندهٔ سرور TeraBox، گرفتهشده با GET خواندنی و مقدارهای کاملاً نامعتبر/ساختگی. هیچ حساب، رمز، توکن، کوکی یا client_id واقعیای استفاده نشد. فقط برای اثبات زندهبودن endpointها و شکل errno ذخیره شده است.",
+  "_method": "fetch_page (GET)",
+  "requests": [
+    {
+      "url": "https://www.terabox.com/oauth/devicecode?client_id=ARENA_INVALID_TEST_ONLY",
+      "purpose": "client_id نامعتبر → unknown client",
+      "response": {
+        "errno": 100001,
+        "newno": "",
+        "request_id": 384136693279060322,
+        "server_time": 1794397624,
+        "show_msg": "unknown client"
+      }
+    },
+    {
+      "url": "https://www.terabox.com/oauth/tokeninfo?access_token=ARENA_INVALID_TEST_ONLY",
+      "purpose": "access_token نامعتبر → invalid access_token",
+      "response": {
+        "errno": 200002,
+        "newno": "",
+        "request_id": 384136779638609863,
+        "server_time": 1794397624,
+        "show_msg": "invalid access_token"
+      }
+    }
+  ]
+}

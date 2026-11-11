@@ -7,7 +7,8 @@
 هر چهارتا رو باهم بی نقص نمیدهد. پیشنهاد من **Hugging Face Hub با مخزن خصوصی
 (۱۰۰ گیگ رایگان، API رسمی، بدون کارت)** است. بیشترین حجم مطلق مال
 **Internet Archive** است، ولی عمومی است و شرایط استفادهاش برای بکاپ شخصی
-مناسب نیست. **TeraBox** یک ترابایت میدهد ولی API خودسرویس عمومی ندارد.
+مناسب نیست. **TeraBox** یک ترابایت میدهد و API رسمی دارد، ولی خودسرویس
+عمومی نیست (تصحیح بعدی را ببینید).
 
 > **✅ تصمیم صاحب پروژه (بعد از این تحقیق):** «من internet archive رو انتخاب
 > میکنم / ولی رمز گزاری متفاوت و کلیدش توی سورس کدها باشه فقط». پیادهسازی
@@ -15,6 +16,16 @@
 > و `r2-relay/internet-archive/`. ریسک «عمومی بودن» که در بخش ۳.۲ همین سند
 > آمده، پذیرفته و صادقانه ثبت شد: چون مخزن هم public است، رمزگذاری فقط تمامیت
 > میدهد، نه محرمانگی.
+>
+> **🔄 تصحیح بعدی دربارهٔ TeraBox:** بعداً سؤال «میشه api تراباکس رو پیدا
+> کنی» مطرح شد و مشخص شد عبارت «API رسمی ندارد» در جدول زیر **دقیق نبود**.
+> TeraBox یک [سند رسمی Open Platform](https://www.terabox.com/integrations/docs)
+> و endpointهای زنده دارد، ولی **self-serve نیست**: `client_id` /
+> `client_secret` / `private_secret` فقط بعد از تأیید شرکتی صادر میشوند، و
+> لاگین هر اکانت فقط یک `access_token` میدهد. تحقیق کامل، تست زندهٔ بدون رمز،
+> کلاینت آفلاین و محدودیتهای ToS در
+> [`docs/TERABOX-OPEN-PLATFORM.md`](TERABOX-OPEN-PLATFORM.md). مقصد دوم کماکان
+> **Internet Archive** است.
 
 ---
 
@@ -46,7 +57,7 @@
 |---|---|---|---|---|---|
 | **Hugging Face Hub** | **۱۰۰GB خصوصی** + عمومی «best-effort» | خیر | بله (`huggingface_hub` / Hub API + توکن) | بله (private repo) | ساخته شده برای مدل/دیتاست؛ استفاده بهعنوان بکاپ عمومی ممکن است سوءاستفاده تلقی شود |
 | **Internet Archive** | عملاً نامحدود؛ توصیه `< ۱TB` هر item، تکفایل `< ۵۰۰GB` | خیر | بله (IAS3، سازگار با S3) | **خیر، همه عمومی** | شرایط استفاده «فقط پژوهش/امور علمی»؛ آیتمها ممکن است حذف شوند؛ صف نوشتن و تأخیر ۲۴ ساعته |
-| **TeraBox** | **۱TB (۱۰۲۴GB)** | خیر | **خیر** (فقط API سفارشی با «تماس با ما») | بله ولی بدون E2E | تبلیغات، کندی، سقف ۴GB هر فایل در موبایل، نگرانیهای حریم خصوصی |
+| **TeraBox** | **۱TB (۱۰۲۴GB)**؛ گزارشهای غیررسمی ۲۰۲۶: اکانت تازه ۳۰GB دائمی | خیر | **بله، ولی partner-only** (سند رسمی Open Platform؛ بدون self-serve) | بله ولی بدون E2E | نیاز به تأیید اپ؛ تبلیغات، کندی، سقف ۴GB هر فایل در موبایل، نگرانیهای حریم خصوصی |
 | **MEGA** | **۲۰GB** | خیر | بله (SDK رسمی C++ / MEGAcmd) | بله، رمزگذاری سرتاسری | سهمیهٔ انتقال پویا و اعلامنشده؛ حجم کمتر |
 | Google Drive | ۱۵GB (مشترک با Gmail/Photos) | خیر | بله (OAuth) | بله | نیاز به پروژهٔ Google Cloud / OAuth |
 | pCloud | ۱۰GB (بعضی مراحل لازم است) | خیر | بله (app key) | بله (Crypto پولی) | حجم کمتر |
@@ -99,7 +110,7 @@ IAS3 یک API رسمی سازگار با S3 است (`https://s3.us.archive.org`)
 `503-slowdown-spam` بدهد. پس «همیشگی و تضمینشده» نیست. رمزگذاری محتوا را
 خصوصی میکند، ولی متادیتا/وجود فایل/نام item عمومی میماند.
 
-### ۳.۳ TeraBox — بیشترین عدد، بدون API خودسرویس
+### ۳.۳ TeraBox — بیشترین عدد، API رسمی ولی بدون self-serve
 
 سایت رسمی «1024GB Cloud Storage» و «Network disk capacity limited to
 1024GB» را برای پلن رایگان تأیید میکند؛ بدون کارت، با اپ ویندوز/مک/لینوکس/
@@ -115,10 +126,25 @@ IAS3 یک API رسمی سازگار با S3 است (`https://s3.us.archive.org`)
 
 صفحهٔ Integration فقط «Account Association / File Management / Transmission /
 Sharing» را برای **شرکتها** با «Contact us» و «customized API solution tailored
-for you» معرفی میکند؛ یعنی API عمومی self-serve در دسترس نیست. نتیجه: یا آپلود
-دستی از طریق اپ، یا اتوماسیون غیررسمی/مهندسی-معکوس — همان کاری که تو فاز
-روبیکا گفتیم نمیخواهیم و ادعای «API رسمی»ش دروغ است. علاوه بر این، نبود
-رمزگذاری سرتاسری و نگرانیهای حریم خصوصی/تبلیغات را چند منبع مستقل ذکر کردهاند.
+for you» معرفی میکند؛ یعنی API عمومی self-serve در دسترس نیست. **اما** همان
+صفحه یک «View Document» دارد که به
+[سند رسمی Open Platform](https://www.terabox.com/integrations/docs) میرود:
+OAuth (authorization code / device code)، `POST /oauth/gettoken`،
+`/oauth/tokeninfo`، quota، و آپلود سه مرحلهای
+`precreate → superfile2 → create`. متأسفانه این سند «Vendors need to apply for
+a client_id and client_secret, as well as a private_secret» میگوید؛ یعنی بدون
+تأیید TeraBox هیچ کلیدی صادر نمیشود. با دو GET خواندنی و مقدار نامعتبر تأیید
+شد endpointها زندهاند (`errno 100001 unknown client` و
+`errno 200002 invalid access_token`). جزئیات در
+[`docs/TERABOX-OPEN-PLATFORM.md`](TERABOX-OPEN-PLATFORM.md).
+
+نتیجهٔ اصلاحشده: یا آپلود دستی از طریق اپ، یا اتوماسیون غیررسمی/
+مهندسی-معکوس (که [شرایط استفاده](https://www.terabox.com/terms/duty) صریحاً
+ممنوعش کرده: «publicly supported interfaces»، «circumvent storage space
+limits»)، یا صبر برای تأیید اپ رسمی. ادعای «هیچ API رسمیـای وجود ندارد»
+دروغ بود؛ ادعای «API گرفتیم و وصلش کردیم» هم دروغ است — انجام نشد. علاوه بر
+این، نبود رمزگذاری سرتاسری و نگرانیهای حریم خصوصی/تبلیغات را چند منبع مستقل
+ذکر کردهاند.
 
 ### ۳.۴ MEGA — کمترین ریسک، حجم متوسط
 
@@ -162,7 +188,7 @@ for you» معرفی میکند؛ یعنی API عمومی self-serve در دست
 |---|---|
 | حجم زیاد **+ خصوصی + API رسمی + بدون کارت** | **Hugging Face، مخزن private، توکن fine-grained** |
 | حداکثر حجم ممکن و عمومی بودن مهم نیست | Internet Archive (با قبول ریسک ToS/حذف) |
-| بیشترین عدد تبلیغشده، حتی بدون API | TeraBox (فقط آپلود دستی) |
+| بیشترین عدد تبلیغشده، حتی بدون API | TeraBox (فقط آپلود دستی؛ API رسمی نیاز به تأیید اپ دارد) |
 | حریم خصوصی قوی و قابلاعتماد، حجم متوسط | MEGA |
 
 پیشنهاد من برای **ادامهٔ همین پروژه**: Hugging Face خصوصی. دلیلش اینکه
@@ -176,7 +202,10 @@ for you» معرفی میکند؛ یعنی API عمومی self-serve در دست
 ## ۵. کارهایی که **انجام نشد** (ادعا نمیشود)
 
 - هیچ حسابی ساخته نشد، هیچ ایمیل/توکن/کلید/پسوردی وارد چت، سورس یا مخزن نشد.
-- هیچ آپلود واقعی، لاگین، تماس API، یا تست شبکهای به این سرویسها انجام نشد.
+- هیچ آپلود واقعی، لاگین، یا تماس نوشتنی API به این سرویسها انجام نشد.
+  **تصحیح بعدی:** فقط دو GET خواندنی با مقدار کاملاً نامعتبر به endpointهای
+  OAuth تراباکس زده شد تا زندهبودنشان تأیید شود (بدون حساب، رمز یا توکن)؛
+  جزئیات در `docs/TERABOX-OPEN-PLATFORM.md`.
 - دسترسپذیری این سرویسها از ایران/شبکهٔ تو تست **نشده**؛ نمیتوانم تضمینش کنم.
 - هیچ استقرار، ادغام PR، تغییر `index.html`/CSP/`MC_API`/Edge، خاموش کردن
   Supabase، حذف ردیف، ریست، ورسل، یا تغییر ظاهر/لاگین/پیامها انجام نشد.
@@ -213,3 +242,6 @@ PR #1 همچنان **OPEN** و merge نشده. شاخهٔ کار: `arena/6b6dad2
 20. Cloudflare R2 free tier / نیاز به پرداخت: <https://agentdeals.dev/vendor/cloudflare-r2>
 21. Cloudflare R2 pricing رسمی: <https://developers.cloudflare.com/r2/pricing/>
 22. مقایسهٔ کلی فضای رایگان ۲۰۲۶: <https://www.cloudstorageexplorer.com/best-free-cloud-storage>
+23. TeraBox — سند رسمی Open Platform (تصحیح بعدی): <https://www.terabox.com/integrations/docs>
+24. TeraBox — شرایط استفاده ۲۰۲۶-۰۹-۱۷: <https://www.terabox.com/terms/duty>
+25. تحقیق کامل API تراباکس: [`docs/TERABOX-OPEN-PLATFORM.md`](TERABOX-OPEN-PLATFORM.md)
