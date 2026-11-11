@@ -27,6 +27,7 @@ import {
 } from './router.mjs';
 import {
   sendDirectMessage, getBaleUpdates, receivePackets, encodePacketForBale,
+  baleStatus, discoverChatId, BALE_API_ORIGIN,
 } from '../bale/api.mjs';
 import { assertNoSecret } from '../client/bale-direct.js';
 import { makePackets, joinPackets } from '../client/courier.js';
@@ -60,6 +61,67 @@ export function trialConfig({ token = '', chatId = '', fetchImpl = null } = {}) 
     frontendSecrets: false,
     // مقادیر token/chatId هرگز برگردانده نمیشوند.
   };
+}
+
+/* پیشچک تست واقعی: فقط از محیط امن میخواند، هیچ مقداری چاپ/ذخیره نمیکند.
+   مشخص میکند آیا توکن معتبر است و آیا getUpdates از بله پاسخ میدهد. */
+export async function runPreflight({
+  token = '', chatId = '', fetchImpl = globalThis.fetch, env = process.env,
+} = {}) {
+  const e = effectiveEnv(token, chatId, env);
+  const cfg = trialConfig({
+    token: e.BALE_BOT_TOKEN, chatId: e.BALE_CHAT_ID, fetchImpl,
+  });
+  if (!cfg.ready) {
+    return {
+      kind: 'memechat-bale-preflight',
+      ok: false,
+      blocked: 'NO_RUNTIME_CREDENTIALS',
+      config: cfg,
+      endpoint: BALE_API_ORIGIN,
+      getMeOk: false,
+      updatesReachable: false,
+      discoveredChatIdPresent: false,
+      message: 'توکن/چتآیدی تو محیط امن سرور تنظیم نشده؛ هیچ تماسی برقرار نشد.',
+      dataDeleted: false,
+      destructiveOperations: [],
+    };
+  }
+  let status;
+  try {
+    status = await baleStatus({ token: e.BALE_BOT_TOKEN, fetchImpl, env: e });
+  } catch (err) {
+    status = { ready: false, message: assertNoSecret(err?.message || 'BALE_UNREACHABLE', e) };
+  }
+  let updates = [];
+  let updatesReachable = false;
+  try {
+    updates = await getBaleUpdates({
+      token: e.BALE_BOT_TOKEN, fetchImpl, env: e, limit: 10,
+    });
+    updatesReachable = Array.isArray(updates);
+  } catch { updatesReachable = false; }
+  const discovered = discoverChatId(updates);
+  const result = {
+    kind: 'memechat-bale-preflight',
+    ok: Boolean(status.ready && updatesReachable),
+    blocked: null,
+    config: cfg,
+    endpoint: BALE_API_ORIGIN,
+    getMeOk: Boolean(status.ready),
+    updatesReachable,
+    discoveredChatIdPresent: Boolean(discovered),
+    vercelUsed: false,
+    frontendSecrets: false,
+    deployed: false,
+    dataDeleted: false,
+    destructiveOperations: [],
+    message: status.ready && updatesReachable
+      ? 'توکن معتبر است و getUpdates پاسخ داد؛ آمادهٔ تست واقعی.'
+      : 'اتصال برقرار نشد یا توکن نامعتبر است؛ فقط وضعیت کلی گزارش شد.',
+  };
+  assertNoSecret(JSON.stringify(result), e);
+  return result;
 }
 
 export class BalePrimaryTrial {

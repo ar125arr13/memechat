@@ -24,7 +24,7 @@ const {
   mockEchoFetch, mockRateLimitFetch,
 } = await import(new URL('../../bale/mock.mjs', import.meta.url).href);
 const {
-  BalePrimaryTrial, DEFAULT_TRIAL_MS, MAX_TRIAL_MS,
+  BalePrimaryTrial, runPreflight, DEFAULT_TRIAL_MS, MAX_TRIAL_MS,
 } = await import(new URL('../trial.mjs', import.meta.url).href);
 
 let passed = 0;
@@ -264,6 +264,34 @@ await test('trial: حین تست نوشتن به سوپا بلاک است تا �
   );
   router.rollbackToSupabase();
   assert.equal(router.status().activePrimary, ACTIVE_FALLBACK);
+});
+
+await test('preflight: با توکن فیکستر، getMe و getUpdates تأیید میشوند و رازی چاپ نمیشود', async () => {
+  const r = await runPreflight({
+    token: FIXTURE_TOKEN, chatId: FIXTURE_CHAT_ID,
+    fetchImpl: mockFetch, env: FIXTURE_ENV,
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.blocked, null);
+  assert.equal(r.getMeOk, true);
+  assert.equal(r.updatesReachable, true);
+  assert.equal(r.endpoint, 'https://tapi.bale.ai');
+  assert.equal(r.vercelUsed, false);
+  assert.equal(r.dataDeleted, false);
+  const blob = JSON.stringify(r);
+  assert.equal(blob.includes(FIXTURE_TOKEN), false);
+  assert.equal(blob.includes(FIXTURE_CHAT_ID), false);
+});
+
+await test('preflight: بدون توکن، تست واقعی بلاک میشود و هیچ تماسی زده نمیشود', async () => {
+  const r = await runPreflight({
+    token: '', chatId: '', fetchImpl: mockFetch, env: {},
+  });
+  assert.equal(r.ok, false);
+  assert.equal(r.blocked, 'NO_RUNTIME_CREDENTIALS');
+  assert.equal(r.getMeOk, false);
+  assert.equal(r.updatesReachable, false);
+  assert.equal(r.dataDeleted, false);
 });
 
 console.log(`\n${passed} tests passed.`);

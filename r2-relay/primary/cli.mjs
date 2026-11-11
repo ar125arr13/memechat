@@ -4,6 +4,7 @@
  *   node primary/cli.mjs trial --fixture                 # آفلاین، بدون هیچ راز واقعی
  *   node primary/cli.mjs trial --fixture --duration-ms 5000
  *   node primary/cli.mjs trial                           # واقعی؛ فقط توکن/چتآیدی از محیط امن
+ *   node primary/cli.mjs preflight                        # پیشچک توکن/اتصال، بدون چاپ راز
  *   node primary/cli.mjs status
  *   node primary/cli.mjs help
  *
@@ -14,7 +15,7 @@
 
 import { webcrypto } from 'node:crypto';
 import { PrimaryDbRouter } from './router.mjs';
-import { BalePrimaryTrial, DEFAULT_TRIAL_MS } from './trial.mjs';
+import { BalePrimaryTrial, runPreflight, DEFAULT_TRIAL_MS } from './trial.mjs';
 import {
   FIXTURE_ENV, FIXTURE_TOKEN, FIXTURE_CHAT_ID, mockEchoFetch,
 } from '../bale/mock.mjs';
@@ -82,6 +83,23 @@ async function doTrial() {
   if (!report.ok) process.exitCode = 1;
 }
 
+async function doPreflight() {
+  const token = String(process.env.BALE_BOT_TOKEN || '').trim();
+  const chatId = String(process.env.BALE_CHAT_ID || '').trim();
+  const r = await runPreflight({ token, chatId, fetchImpl: globalThis.fetch, env: process.env });
+  if (r.blocked) {
+    console.log(`⛔ ${r.blocked}: ${r.message}`);
+    console.log('   هیچ تماسی به بله زده نشد؛ سوپا فعال است.');
+    process.exitCode = 2;
+    return;
+  }
+  console.log(`پیشچک بله | endpoint: ${r.endpoint}`);
+  console.log(`توکن معتبر: ${r.getMeOk} | getUpdates پاسخ داد: ${r.updatesReachable}`);
+  console.log(`چتآیدی کشف شد: ${r.discoveredChatIdPresent} | ${r.message}`);
+  console.log('هیچ مقدار توکن/چتآیدی چاپ نشد.');
+  if (!r.ok) process.exitCode = 1;
+}
+
 function doStatus() {
   const router = makeRouter();
   const s = router.status();
@@ -99,6 +117,7 @@ function help() {
   trial --fixture                     تست آفلاین کامل (ارسال + برگشت + تأیید SHA)
   trial --fixture --duration-ms 5000  همان، با پنجرهٔ ۵ ثانیه
   trial                               تست واقعی؛ BALE_BOT_TOKEN/BALE_CHAT_ID از محیط امن سرور
+  preflight                           پیشچک توکن/اتصال، بدون چاپ هیچ رازی
   status                              وضعیت لایهٔ دیتابیس اصلی
   help                                همین متن
 
@@ -113,5 +132,6 @@ function help() {
 
 const cmd = process.argv[2] || 'help';
 if (cmd === 'trial') await doTrial();
+else if (cmd === 'preflight') await doPreflight();
 else if (cmd === 'status') await doStatus();
 else help();

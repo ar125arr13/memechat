@@ -71,7 +71,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 | `client/bale-direct.js` | **کد کامل API بله تو سورس کلاینت**، بدون بکاند؛ ارسال بستههای رمزشده به بازوهای بیکار |
 | `client/storage-adapter.js` | `BaleDirectDriver` + `publishForBaleDirect` کنار درایورهای قبلی، بدون حذف |
 | `primary/router.mjs` | لایهٔ «دیتابیس اصلی»: بله تعیینشده، پروب شکست خورد، سوپا موقتاً فعال |
-| `primary/trial.mjs`, `primary/cli.mjs`, `primary/tests/run.mjs` | **تست محدودزمانی**: بله چند ثانیه فعال، فایل رمزشده رفت/برگشت + SHA، برگشت خودکار به سوپا (۱۴ تست) |
+| `primary/trial.mjs`, `primary/cli.mjs`, `primary/real-test.sh`, `primary/tests/run.mjs` | **تست محدودزمانی + تست واقعی**: بله چند ثانیه فعال، فایل رمزشده رفت/برگشت + SHA، برگشت خودکار به سوپا، پیشچک توکن (۱۶ تست) |
 | `tests/run.mjs` | ۱۸ تست (۱۳ قدیمی + ۵ جدید «بله مستقیم از سورس») |
 
 درایورهای قدیمی `R2Driver` / `HttpStorageDriver` / `MemoryDriver` و
@@ -82,7 +82,7 @@ CSP و `MC_API` **دستنخورده** ماندهاند. هیچ ردیفی پا�
 
 ```bash
 cd /home/user/memechat/r2-relay
-npm run test:all                 # 18 + 8 + 13 + 14 = 53 تست سبز
+npm run test:all                 # 18 + 8 + 13 + 16 = 55 تست سبز
 
 # تست کاملاً آفلاین، بدون رمز و بدون سرویس
 npm run rubika:export:fixture
@@ -139,9 +139,23 @@ node bale/cli.mjs send-packets \
 
 ```bash
 npm run test:primary
-npm run primary:trial      # همان تست محدودزمانی، آفلاین و امن
+npm run primary:trial       # همان تست محدودزمانی، آفلاین و امن
+npm run primary:preflight   # پیشچک توکن (بدون چاپ راز)
 npm run primary:status
 ```
+
+**تست واقعی** (تو ترمینال امن خودتان، نه چت):
+
+```bash
+export BALE_BOT_TOKEN='...'
+export BALE_CHAT_ID='...'
+./r2-relay/primary/real-test.sh
+```
+
+توکن فقط هویت همان بازوست (`/bot<TOKEN>/sendMessage`)؛ با توکن قلابی، خودِ بله
+`401 Unauthorized` داد. رمز حساب/OTP/کارت نیست، ولی نباید تو چت/سورس/فرانتاند
+بیاید. خروجی شبکهٔ این محیط به `tapi.bale.ai` بسته است، پس تست واقعی حتماً
+سمت شماست. جزئیات: `../docs/PRIMARY-DB-BALE.md` بخش ۶.
 
 درخواست بعدی «الان تنظیمش کن روی بله ببینیم کار میکنه؟ عیبی نداره اگه مدت کمی
 باشه» هم اجرا شد: `primary/trial.mjs` بله را فقط چند ثانیه فعال کرد، فایل
