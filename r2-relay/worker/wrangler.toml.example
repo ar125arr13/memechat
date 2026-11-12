@@ -1,0 +1,29 @@
+# TEMPLATE ONLY — copy to wrangler.toml, fill in your own IDs, then deploy yourself.
+# No secret values are stored in this repository.
+name = "memechat-r2-relay"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# R2 bucket: holds ciphertext blobs + tiny manifests. Egress is free.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "memechat-blobs"
+
+# Optional KV for best-effort rate limiting (Free: 1,000 writes/day).
+# Prefer a Durable Object counter in production.
+[[kv_namespaces]]
+binding = "RATE"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+ALLOWED_ORIGIN = "https://zahradavoodi69-code.github.io"
+RATE_LIMIT_PER_MIN = "120"
+
+# MC_AUTH_SECRET is NOT here. Set it with:
+#   wrangler secret put MC_AUTH_SECRET
+# It must match the issuer of the HMAC session tokens.
+# NEVER commit it, log it, or send it in a chat message.
+
+# Cron for the offline "verify then delete" sweeper (Free: 5 triggers/account).
+[triggers]
+crons = ["*/30 * * * *"]

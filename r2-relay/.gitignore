@@ -1,0 +1,23 @@
+wrangler.toml
+.dev.vars
+.wrangler/
+node_modules/
+*.log
+.env
+.env.*
+!.env.example
+
+# خروجی ابزار دیتابیس دوم (بستههای رمزشده + منیفست الحاقی).
+# هرگز.commit نشود؛ فقط تو محیط امن میماند.
+rubika/out/
+maxrubika/out/
+internet-archive/out/
+terabox/out/
+*.mcia
+strong-db/out/
+
+# سشن حساب شخصی MAXRubika شامل auth/private_key است؛ هرگز commit نشود.
+*.session
+rubsession*
+__pycache__/
+*.pyc
